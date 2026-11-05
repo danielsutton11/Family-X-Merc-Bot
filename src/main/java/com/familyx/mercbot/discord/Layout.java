@@ -33,6 +33,7 @@ public class Layout {
     public static final String ROLE_MERITS = "role.merits";
     public static final String ROLE_STRICKEN = "role.stricken";
     // Pinned messages
+    /** No longer posted: the guide is now part of the request panel. Kept so old copies get deleted. */
     public static final String MSG_GUIDE = "msg.requests.guide";
     public static final String MSG_REQUEST_PANEL = "msg.requests.panel";
     public static final String MSG_SIGNUP = "msg.signup";
@@ -59,6 +60,13 @@ public class Layout {
         Map<String, Long> map = new HashMap<>(all());
         map.put(key, id);
         settings.put(SETTINGS_KEY, map, null);
+    }
+
+    public synchronized void remove(String key) {
+        Map<String, Long> map = new HashMap<>(all());
+        if (map.remove(key) != null) {
+            settings.put(SETTINGS_KEY, map, null);
+        }
     }
 
     public Map<String, Long> all() {

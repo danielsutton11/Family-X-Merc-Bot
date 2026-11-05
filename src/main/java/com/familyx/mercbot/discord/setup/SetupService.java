@@ -144,7 +144,7 @@ public class SetupService {
             report.problems().add("The request channel (MERC_REQUESTS_CHANNEL_ID) wasn't found, so the guide and "
                     + "request panel weren't posted.");
         } else {
-            ensureMessage(requests, Layout.MSG_GUIDE, panels.guide(), "Request guide", report);
+            removeMessage(requests, Layout.MSG_GUIDE, "old request guide (now part of the request panel)", report);
             ensureMessage(requests, Layout.MSG_REQUEST_PANEL, panels.requestPanel(), "Request panel", report);
         }
         ensureMessage(signup, Layout.MSG_SIGNUP, panels.signupPanel(), "Sign-up panel", report);
@@ -310,6 +310,23 @@ public class SetupService {
     private void ensureMessage(TextChannel channel, String key, Panel panel, String label, Report report) {
         Long id = ensureMessage(channel, layout.get(key), panel, label, report);
         layout.put(key, id);
+    }
+
+    /** Deletes a panel that is no longer used, if it is still there, and forgets its ID. */
+    private void removeMessage(TextChannel channel, String key, String label, Report report) {
+        Optional<Long> id = layout.get(key);
+        if (id.isEmpty()) {
+            return;
+        }
+        try {
+            channel.deleteMessageById(id.get()).complete();
+            report.repaired().add("Removed " + label);
+        } catch (ErrorResponseException e) {
+            if (e.getErrorResponse() != ErrorResponse.UNKNOWN_MESSAGE) {
+                throw e;
+            }
+        }
+        layout.remove(key);
     }
 
     /** Edits the stored message if it still exists, otherwise posts a new one. Returns its ID. */

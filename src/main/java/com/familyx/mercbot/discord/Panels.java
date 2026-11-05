@@ -69,44 +69,27 @@ public class Panels {
 
     // ------------------------------------------------------------------ #merc-requests
 
-    public Panel guide() {
-        EmbedBuilder eb = new EmbedBuilder()
-                .setColor(BRAND)
-                .setAuthor("FAMILY X · MERC SERVICE")
-                .setTitle("📖  How to hire us")
-                .setDescription("""
-                        1️⃣  **Choose your contract**
-                        -# Tier, who it's for, your targets, attack type and mode.
-
-                        2️⃣  **Name your targets**
-                        -# Type player IDs, or pick members from a faction.
-
-                        3️⃣  **Check your quote**
-                        -# Conditions are filled in for you. Change them if you need to, then accept.
-
-                        4️⃣  **Pay when it's done**
-                        -# Your invoice arrives by DM when the contract ends. Pay the named leader in Torn.""")
-                .addField("💡  Good to know", """
-                        • **Repeat last contract** fills every step in for you.
-                        • Hits that break your conditions are never billed.
-                        • Everything after your first click is private to you.""", false);
-        return new Panel(eb.build(), List.of());
-    }
-
+    /** The one pinned message in #merc-requests: tiers, how it works, and the buttons. */
     public Panel requestPanel() {
         EmbedBuilder eb = new EmbedBuilder()
-                .setColor(BRAND)
-                .setTitle("⚔️  Hire the Family X mercs")
-                .setDescription("Pick a tier, name your targets and get an instant quote.");
+                .setColor(PRIVATE)
+                .setAuthor("FAMILY X · MERC SERVICE")
+                .setTitle("⚔️  Hire the Family X mercs");
         List<Tier> enabled = tiers.findActive().stream().filter(Tier::enabled).toList();
         if (enabled.isEmpty()) {
             eb.addField("No tiers available", "Check back soon.", false);
         }
         for (Tier t : enabled) {
             eb.addField(tierIcon(t) + "  " + t.name(),
-                    "**" + Money.shortForm(t.pricePerHit()) + "** per hit\n-# " + tierWho(t), true);
+                    "**" + Money.shortForm(t.pricePerHit()) + "** per hit\n-# " + tierWhoShort(t), true);
         }
-        eb.setFooter("Merc me makes you the target, billed at Gold  ·  Verified members only");
+        pad(eb, enabled.size());
+        eb.addField("📖  How it works", """
+                **1**  Choose tier, target, attack type and mode
+                **2**  Enter the players, or pick faction members
+                **3**  Check the quote; conditions are pre-filled
+                **4**  Pay the invoice in Torn when it ends""", false);
+        eb.setFooter("🔁 Repeat last contract fills everything in  ·  🎯 Merc me is billed at Gold");
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
                         Button.primary(CustomId.of("soon", "3", "request-a-contract"), "Request a contract")
@@ -269,6 +252,13 @@ public class Panels {
     static String tierWho(Tier t) {
         if (t.requiresStricken()) return "10/10 merits, max hosp perk and Stricken";
         if (t.requiresMerits()) return "10/10 merits and max hosp perk";
+        return "Any merc";
+    }
+
+    /** Shorter version for side-by-side tier cards. */
+    static String tierWhoShort(Tier t) {
+        if (t.requiresStricken()) return "Silver + Stricken";
+        if (t.requiresMerits()) return "10/10 merits + max hosp perk";
         return "Any merc";
     }
 
