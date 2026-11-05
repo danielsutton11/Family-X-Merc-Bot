@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: merc-bot
+  main:
+    # No web endpoint: the bot only talks to Discord and Torn.
+    web-application-type: none
+  datasource:
+    # Railway's Postgres plugin provides PGHOST, PGPORT, PGDATABASE, PGUSER and PGPASSWORD.
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:mercbot}
+    username: ${PGUSER:postgres}
+    password: ${PGPASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+mercbot:
+  discord-token: ${DISCORD_TOKEN:}
+  guild-id: ${DISCORD_GUILD_ID:0}
+  merc-manager-role-id: ${FAMILY_X_MERC_MANAGER_ROLE_ID:0}
+  verified-role-id: ${VERIFIED_ROLE_ID:0}
+  family-x-role-id: ${FAMILY_X_ROLE_ID:0}
+  requests-channel-id: ${MERC_REQUESTS_CHANNEL_ID:0}
+  # Base64-encoded 32-byte AES key. Generate with: openssl rand -base64 32
+  key-master: ${MERC_KEY_MASTER:}
+  bsp-version: ${BSP_VERSION:9.4.7}
+  # Torn allows 100 calls per minute per key; stay under it.
+  calls-per-key-per-minute: ${CALLS_PER_KEY_PER_MINUTE:90}
+
+logging:
+  level:
+    root: INFO
+    net.dv8tion.jda: INFO
+    com.familyx.mercbot: INFO
