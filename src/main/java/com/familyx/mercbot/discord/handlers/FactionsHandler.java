@@ -160,11 +160,11 @@ public class FactionsHandler implements InteractionHandler {
         EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setAuthor("SETTINGS")
                 .setTitle("🏰  Family X factions");
         if (notice != null) {
-            eb.setDescription(notice);
+            eb.setDescription(notice + Panels.GAP);
         }
         for (FamilyFaction f : factions.findActive()) {
             eb.addField(f.name(), "-# ID " + f.tornFactionId() + "\n"
-                    + (f.leaderRoleId() == null ? "⚠️ No leader role" : "<@&" + f.leaderRoleId() + ">"), true);
+                    + (f.leaderRoleId() == null ? "⚠️ No leader role" : "<@&" + f.leaderRoleId() + ">") + Panels.GAP, true);
         }
         return Screen.of(eb.build(),
                 ActionRow.of(

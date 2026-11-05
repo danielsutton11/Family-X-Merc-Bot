@@ -39,13 +39,12 @@ import java.util.Map;
 public class KeysHandler implements InteractionHandler {
 
     static final String KEY_USE_STATEMENT = """
-            **How your key is used**
-            • **Access:** a Limited key with faction API access.
-            • **Used for:** your faction's attacks, news, balance, upgrades and members, public lookups of \
-            contract targets, and BSP estimates if your key has a BSP subscription.
-            • **Stored:** encrypted; never shown back to anyone.
-            • **Shared with:** BSP's server, only if your key has an active BSP subscription.
-            • **Removed:** any time, with *Remove my keys* below.""";
+            -# **Access**  A Limited key with faction API access.
+            -# **Used for**  Your faction's attacks, news, balance, upgrades and members, lookups of contract \
+            targets, and BSP estimates.
+            -# **Stored**  Encrypted, never shown back to anyone.
+            -# **Shared with**  BSP's server, only if your key has an active BSP subscription.
+            -# **Removed**  Any time, with *Remove my keys*.""";
 
     private final ApiKeyService keyService;
     private final ApiKeyRepository repo;
@@ -141,7 +140,7 @@ public class KeysHandler implements InteractionHandler {
             String dot = c.healthy() >= min ? "🟢" : c.healthy() > 0 ? "🟠" : "🔴";
             eb.addField(dot + "  " + f.name(), "**" + c.healthy() + " / " + min + "** keys"
                     + (c.total() > c.healthy() ? "\n-# " + (c.total() - c.healthy()) + " not working" : "")
-                    + "\n-# " + (c.bsp() > 0 ? c.bsp() + " with BSP" : "no BSP"), true);
+                    + "\n-# " + (c.bsp() > 0 ? c.bsp() + " with BSP" : "no BSP") + Panels.GAP, true);
             tiles++;
         }
         for (int i = tiles % 3; i != 0 && i < 3; i++) {
@@ -151,8 +150,10 @@ public class KeysHandler implements InteractionHandler {
         String yours = mine.isEmpty() ? "You haven't added a key." : mine.stream()
                 .map(k -> (k.healthy() ? "✅ working" : "❌ " + k.unhealthyReason()) + (k.bspActive() ? " · BSP" : ""))
                 .reduce((a, b) -> a + "\n" + b).orElse("");
-        eb.addField("👤  Your keys", yours, false);
-        eb.setDescription((notice == null ? "" : notice + "\n\n") + KEY_USE_STATEMENT);
+        eb.addField("👤  Your keys", yours + Panels.GAP, false);
+        eb.addField("🔒  How your key is used", KEY_USE_STATEMENT, false);
+        eb.setDescription((notice == null ? "" : notice + "\n\n") + "Each faction needs " + min
+                + " healthy keys. Add yours below." + Panels.GAP);
         return Screen.of(eb.build(), ActionRow.of(
                 Button.primary(CustomId.of("keys", "add"), "Add my key").withEmoji(Emoji.fromUnicode("➕")),
                 Button.danger(CustomId.of("keys", "remove"), "Remove my keys").withEmoji(Emoji.fromUnicode("🗑️"))));

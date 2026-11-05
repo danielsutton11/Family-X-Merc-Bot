@@ -35,6 +35,9 @@ public class Panels {
     public static final Color WARN = new Color(0xE6A817);
     public static final Color BAD = new Color(0xD64545);
 
+    /** A zero-width blank line; Discord trims plain trailing newlines, so this is how to add spacing. */
+    public static final String GAP = "\n\u200b";
+
     /** A blank inline field, used to keep tile grids aligned in threes. */
     private static final MessageEmbed.Field SPACER = new MessageEmbed.Field("​", "​", true);
 
@@ -81,14 +84,14 @@ public class Panels {
         }
         for (Tier t : enabled) {
             eb.addField(tierIcon(t) + "  " + t.name(),
-                    "**" + Money.shortForm(t.pricePerHit()) + "** per hit\n-# " + tierWhoShort(t), true);
+                    "**" + Money.shortForm(t.pricePerHit()) + "** per hit\n-# " + tierWhoShort(t) + GAP, true);
         }
         pad(eb, enabled.size());
         eb.addField("📖  How it works", """
                 **1**  Choose tier, target, attack type and mode
                 **2**  Enter the players, or pick faction members
                 **3**  Check the quote; conditions are pre-filled
-                **4**  Pay the invoice in Torn when it ends""", false);
+                **4**  Pay the invoice in Torn when it ends""" + GAP, false);
         eb.setFooter("🔁 Repeat last contract fills everything in  ·  🎯 Merc me is billed at Gold");
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
@@ -185,25 +188,25 @@ public class Panels {
             String dot = c.healthy() >= min ? "🟢" : c.healthy() > 0 ? "🟠" : "🔴";
             if (c.healthy() < min) short_++;
             String value = "**" + c.healthy() + " / " + min + "** keys"
-                    + (c.bsp() > 0 ? "\n-# " + c.bsp() + " with BSP" : "\n-# no BSP");
+                    + (c.bsp() > 0 ? "\n-# " + c.bsp() + " with BSP" : "\n-# no BSP") + GAP;
             eb.addField(dot + "  " + f.name(), value, true);
         }
         pad(eb, family.size());
 
         // ---- tiers
         List<Tier> tierList = tiers.findActive();
-        eb.addField("🏷️  Tiers", "​", false);
+        eb.addField("🏷️  Tiers", "-# Prices per hit. Change them in Tiers & pricing.", false);
         for (Tier t : tierList) {
             eb.addField(tierIcon(t) + "  " + t.name(),
-                    Money.shortForm(t.pricePerHit()) + " per hit\n-# " + (t.enabled() ? "✅ on" : "⛔ off"), true);
+                    Money.shortForm(t.pricePerHit()) + " per hit\n-# " + (t.enabled() ? "✅ on" : "⛔ off") + GAP, true);
         }
         pad(eb, tierList.size());
 
-        eb.setDescription(family.isEmpty()
+        eb.setDescription((family.isEmpty()
                 ? "⚠️ No family factions set up yet. Open **Settings → Factions**."
                 : short_ == 0
                 ? "✅ All factions have enough keys."
-                : "⚠️ **" + short_ + " of " + family.size() + "** factions need more keys. Use **Keys** to add one.");
+                : "⚠️ **" + short_ + " of " + family.size() + "** factions need more keys. Use **Keys** to add one.") + GAP);
 
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
@@ -258,7 +261,7 @@ public class Panels {
     /** Shorter version for side-by-side tier cards. */
     static String tierWhoShort(Tier t) {
         if (t.requiresStricken()) return "Silver + Stricken";
-        if (t.requiresMerits()) return "10/10 merits + max hosp perk";
+        if (t.requiresMerits()) return "Merits + hosp perk";
         return "Any merc";
     }
 
