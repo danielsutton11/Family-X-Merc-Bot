@@ -6,6 +6,7 @@ import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.InteractionHandler;
 import com.familyx.mercbot.discord.LeaderPanelService;
 import com.familyx.mercbot.discord.Panels;
+import com.familyx.mercbot.discord.Screen;
 import com.familyx.mercbot.faction.FamilyFactionRepository;
 import com.familyx.mercbot.faction.FamilyFactionRepository.FamilyFaction;
 import com.familyx.mercbot.keys.ApiKeyRepository;
@@ -16,9 +17,9 @@ import com.familyx.mercbot.keys.ApiKeyService;
 import com.familyx.mercbot.keys.ApiKeyService.AddResult;
 import com.familyx.mercbot.settings.BotSettings;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.text.TextInput;
@@ -31,7 +32,7 @@ import java.util.Map;
 
 /**
  * Leader panel → Keys (scope doc 6.1 and 10.2): per-faction key health, adding your own key,
- * removing your keys. Key values are never shown back.
+ * removing your keys. Key values are never shown back. All steps update one private message.
  */
 @Component
 public class KeysHandler implements InteractionHandler {
@@ -76,7 +77,7 @@ public class KeysHandler implements InteractionHandler {
     public void button(ButtonInteractionEvent event, CustomId id) {
         long user = event.getUser().getIdLong();
         switch (id.sub()) {
-            case "view" -> event.replyEmbeds(view(user)).setComponents(viewButtons()).setEphemeral(true).queue();
+            case "view" -> view(user, null).show(event);
             case "add" -> event.replyModal(Modal.create(CustomId.of("keys", "submit"), "Add your leader API key")
                     .addComponents(ActionRow.of(TextInput.create("key", "Torn API key", TextInputStyle.SHORT)
                             .setMinLength(16).setMaxLength(16).setRequired(true)
@@ -85,13 +86,16 @@ public class KeysHandler implements InteractionHandler {
             case "remove" -> {
                 int count = repo.findByOwner(user, Kind.LEADER).size();
                 if (count == 0) {
-                    event.reply("You haven't added any leader keys.").setEphemeral(true).queue();
+                    view(user, "You haven't added any leader keys.").show(event);
                     return;
                 }
-                event.reply("Remove your " + count + " leader key" + (count == 1 ? "" : "s") + "? "
-                                + "The bot stops using them straight away.")
-                        .setComponents(ActionRow.of(Button.danger(CustomId.of("keys", "removeconfirm"), "Remove")))
-                        .setEphemeral(true).queue();
+                Screen.of(new EmbedBuilder().setColor(Panels.WARN).setTitle("Remove your keys?")
+                                .setDescription("Remove your " + count + " leader key" + (count == 1 ? "" : "s")
+                                        + "? The bot stops using them straight away.").build(),
+                        ActionRow.of(
+                                Button.danger(CustomId.of("keys", "removeconfirm"), "Remove"),
+                                Button.secondary(CustomId.of("keys", "view"), "Cancel")))
+                        .show(event);
             }
             case "removeconfirm" -> {
                 List<StoredKey> before = repo.findByOwner(user, Kind.LEADER);
@@ -99,37 +103,33 @@ public class KeysHandler implements InteractionHandler {
                 audit.log(user, "LEADER_KEY_REMOVED", "api_key", Map.of("count", before.size()), null,
                         "Removed " + removed + " leader key" + (removed == 1 ? "" : "s"));
                 leaderPanel.refresh();
-                event.editMessage("Removed " + removed + " key" + (removed == 1 ? "" : "s") + ".")
-                        .setComponents().queue();
+                view(user, "✅ Removed " + removed + " key" + (removed == 1 ? "" : "s") + ".").show(event);
             }
-            default -> event.reply("Unknown option.").setEphemeral(true).queue();
+            default -> view(user, "Unknown option.").show(event);
         }
     }
 
     @Override
     public void modal(ModalInteractionEvent event, CustomId id) {
-        event.deferReply(true).queue();
+        InteractionHook hook = Screen.deferInPlace(event);
         long user = event.getUser().getIdLong();
         String key = event.getValue("key") == null ? "" : event.getValue("key").getAsString();
         AddResult result = keyService.addLeaderKey(key, user);
-        switch (result) {
-            case AddResult.Rejected r -> event.getHook().editOriginal("❌ " + r.reason()).queue();
+        String notice = switch (result) {
+            case AddResult.Rejected r -> "❌ " + r.reason();
             case AddResult.Added a -> {
                 audit.log(user, "LEADER_KEY_ADDED", "api_key:" + a.keyId(), null,
                         Map.of("faction", a.faction().tornFactionId(), "bsp", a.bspActive()),
                         "Added a leader key for " + a.faction().name() + (a.bspActive() ? " (BSP active)" : ""));
                 leaderPanel.refresh();
-                FactionKeyCount count = repo.leaderKeyCountsByFaction().get(a.faction().tornFactionId());
-                int healthy = count == null ? 0 : count.healthy();
-                event.getHook().editOriginal("✅ Added your key for **" + a.faction().name() + "** (" + a.tornName()
-                        + "). BSP subscription: " + (a.bspActive() ? "**active**" : "not active") + ".\n"
-                        + a.faction().name() + " now has **" + healthy + "** healthy leader key"
-                        + (healthy == 1 ? "" : "s") + ".").queue();
+                yield "✅ Added your key for **" + a.faction().name() + "** (" + a.tornName() + "). "
+                        + "BSP subscription: " + (a.bspActive() ? "**active**" : "not active") + ".";
             }
-        }
+        };
+        view(user, notice).show(hook);
     }
 
-    private MessageEmbed view(long user) {
+    private Screen view(long user, String notice) {
         int min = settings.minLeaderKeysPerFaction();
         Map<Long, FactionKeyCount> counts = repo.leaderKeyCountsByFaction();
         EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setTitle("Leader API keys");
@@ -144,13 +144,9 @@ public class KeysHandler implements InteractionHandler {
                 .map(k -> (k.healthy() ? "✅ working" : "❌ " + k.unhealthyReason()) + (k.bspActive() ? " · BSP" : ""))
                 .reduce((a, b) -> a + "\n" + b).orElse("");
         eb.addField("Your keys", yours, false);
-        eb.setDescription(KEY_USE_STATEMENT);
-        return eb.build();
-    }
-
-    private ActionRow viewButtons() {
-        return ActionRow.of(
+        eb.setDescription((notice == null ? "" : notice + "\n\n") + KEY_USE_STATEMENT);
+        return Screen.of(eb.build(), ActionRow.of(
                 Button.primary(CustomId.of("keys", "add"), "Add my key"),
-                Button.danger(CustomId.of("keys", "remove"), "Remove my keys"));
+                Button.danger(CustomId.of("keys", "remove"), "Remove my keys")));
     }
 }

@@ -4,6 +4,7 @@ import com.familyx.mercbot.discord.Access;
 import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.InteractionHandler;
 import com.familyx.mercbot.discord.Panels;
+import com.familyx.mercbot.discord.Screen;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
@@ -29,11 +30,12 @@ public class SettingsHandler implements InteractionHandler {
 
     @Override
     public void button(ButtonInteractionEvent event, CustomId id) {
-        EmbedBuilder eb = new EmbedBuilder()
-                .setColor(Panels.LEADER)
-                .setTitle("Settings")
-                .setDescription("Pick a group. Groups that are greyed out arrive in later build phases.");
-        event.replyEmbeds(eb.build()).setComponents(
+        Screen.of(
+                new EmbedBuilder()
+                        .setColor(Panels.LEADER)
+                        .setTitle("Settings")
+                        .setDescription("Pick a group. Groups that are greyed out arrive in later build phases.")
+                        .build(),
                 ActionRow.of(
                         Button.primary(CustomId.of("factions", "view"), "Factions"),
                         Button.secondary(CustomId.of("soon", "3", "requests"), "Requests").asDisabled(),
@@ -44,6 +46,6 @@ public class SettingsHandler implements InteractionHandler {
                         Button.secondary(CustomId.of("soon", "4", "billing"), "Billing").asDisabled(),
                         Button.secondary(CustomId.of("soon", "4", "payments"), "Payments").asDisabled(),
                         Button.secondary(CustomId.of("soon", "5", "alerts"), "Alerts").asDisabled()))
-                .setEphemeral(true).queue();
+                .show(event);
     }
 }
