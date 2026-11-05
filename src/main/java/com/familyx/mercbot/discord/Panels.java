@@ -131,15 +131,29 @@ public class Panels {
                 .setColor(new Color(0x3FA39A))
                 .setAuthor("FAMILY X · MERC SERVICE")
                 .setTitle("🗡️  Become a merc")
-                .setDescription("Earn from every hit you land on a Family X contract.");
-        for (Tier t : tiers.findActive()) {
-            eb.addField(tierIcon(t) + "  " + t.name(), "-# " + tierWho(t), true);
+                .setDescription("Earn from every hit you land on a Family X contract." + GAP);
+        List<Tier> active = tiers.findActive();
+        for (Tier t : active) {
+            eb.addField(tierIcon(t) + "  " + t.name(), signupNeeds(t) + GAP, true);
         }
-        eb.setFooter("You'll need a Limited Torn API key for the merits check");
+        pad(eb, active.size());
+        eb.addField("📖  How it works", """
+                **1**  Join and link your Torn account
+                **2**  Your tiers are checked daily and given as roles
+                **3**  Claim and hit targets on your tier boards
+                **4**  Get paid your share when the contract settles""" + GAP, false);
+        eb.setFooter("🔑 You'll need a Limited Torn API key for the merits check");
         return new Panel(eb.build(), List.of(ActionRow.of(
                 Button.primary(CustomId.of("soon", "2", "join"), "Join").withEmoji(Emoji.fromUnicode("✅")),
                 Button.secondary(CustomId.of("soon", "2", "my-profile"), "My profile")
                         .withEmoji(Emoji.fromUnicode("👤")))));
+    }
+
+    /** What a merc needs for a tier, kept short so the three cards line up. */
+    static String signupNeeds(Tier t) {
+        if (t.requiresStricken()) return "Silver\n-# + Stricken";
+        if (t.requiresMerits()) return "10/10 merits\n-# + max hosp perk";
+        return "Open to all\n-# no requirements";
     }
 
     // ------------------------------------------------------------------ tier boards
