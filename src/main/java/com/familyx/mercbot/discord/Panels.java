@@ -9,14 +9,17 @@ import com.familyx.mercbot.tier.TierRepository;
 import com.familyx.mercbot.tier.TierRepository.Tier;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  * Content for every pinned panel. Phase 1 posts all of them; buttons for features built in
@@ -32,11 +35,14 @@ public class Panels {
     public static final Color WARN = new Color(0xE6A817);
     public static final Color BAD = new Color(0xD64545);
 
+    /** A blank inline field, used to keep tile grids aligned in threes. */
+    private static final MessageEmbed.Field SPACER = new MessageEmbed.Field("​", "​", true);
+
     /** A message as an embed plus button rows. */
     public record Panel(MessageEmbed embed, List<ActionRow> rows) {
         /** Discord rejects a message whose components share a custom id; fail early with a clear message. */
         public Panel {
-            java.util.Set<String> seen = new java.util.HashSet<>();
+            Set<String> seen = new HashSet<>();
             for (ActionRow row : rows) {
                 for (var component : row.getActionComponents()) {
                     String id = component.getId();
@@ -67,50 +73,68 @@ public class Panels {
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(BRAND)
                 .setAuthor("FAMILY X · MERC SERVICE")
-                .setTitle("How to hire us")
+                .setTitle("📖  How to hire us")
                 .setDescription("""
-                        **1** Choose tier, target, attack type and mode
-                        **2** Enter the players, or pick faction members
-                        **3** Check the quote; conditions are pre-filled
-                        **4** Pay the invoice in Torn when it ends
+                        1️⃣  **Choose your contract**
+                        -# Tier, who it's for, your targets, attack type and mode.
 
-                        *Tip: Repeat last contract fills everything in.*""");
+                        2️⃣  **Name your targets**
+                        -# Type player IDs, or pick members from a faction.
+
+                        3️⃣  **Check your quote**
+                        -# Conditions are filled in for you. Change them if you need to, then accept.
+
+                        4️⃣  **Pay when it's done**
+                        -# Your invoice arrives by DM when the contract ends. Pay the named leader in Torn.""")
+                .addField("💡  Good to know", """
+                        • **Repeat last contract** fills every step in for you.
+                        • Hits that break your conditions are never billed.
+                        • Everything after your first click is private to you.""", false);
         return new Panel(eb.build(), List.of());
     }
 
     public Panel requestPanel() {
-        String prices = tiers.findActive().stream()
-                .filter(Tier::enabled)
-                .map(t -> "**" + t.name() + "** " + Money.shortForm(t.pricePerHit()))
-                .collect(Collectors.joining(" · "));
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(BRAND)
-                .setTitle("Hire the Family X mercs")
-                .setDescription((prices.isBlank() ? "No tiers available right now." : prices + " per hit")
-                        + "\n-# Silver and Gold mercs: 10/10 merits + max hospitalisation perk."
-                        + "\n-# Merc me makes you the target, billed at Gold.");
+                .setTitle("⚔️  Hire the Family X mercs")
+                .setDescription("Pick a tier, name your targets and get an instant quote.");
+        List<Tier> enabled = tiers.findActive().stream().filter(Tier::enabled).toList();
+        if (enabled.isEmpty()) {
+            eb.addField("No tiers available", "Check back soon.", false);
+        }
+        for (Tier t : enabled) {
+            eb.addField(tierIcon(t) + "  " + t.name(),
+                    "**" + Money.shortForm(t.pricePerHit()) + "** per hit\n-# " + tierWho(t), true);
+        }
+        eb.setFooter("Merc me makes you the target, billed at Gold  ·  Verified members only");
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
-                        Button.primary(CustomId.of("soon", "3", "request-a-contract"), "Request a contract"),
-                        Button.secondary(CustomId.of("soon", "3", "merc-me-gold"), "Merc me (Gold)")),
+                        Button.primary(CustomId.of("soon", "3", "request-a-contract"), "Request a contract")
+                                .withEmoji(Emoji.fromUnicode("⚔️")),
+                        Button.secondary(CustomId.of("soon", "3", "merc-me-gold"), "Merc me (Gold)")
+                                .withEmoji(Emoji.fromUnicode("🎯"))),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3", "repeat-last-contract"), "Repeat last contract"),
-                        Button.secondary(CustomId.of("help", "requests"), "Help"))));
+                        Button.secondary(CustomId.of("soon", "3", "repeat-last-contract"), "Repeat last contract")
+                                .withEmoji(Emoji.fromUnicode("🔁")),
+                        Button.secondary(CustomId.of("help", "requests"), "Help")
+                                .withEmoji(Emoji.fromUnicode("❓")))));
     }
 
     /** The private guide behind the Help button. */
     public MessageEmbed requestHelp() {
-        EmbedBuilder eb = new EmbedBuilder().setColor(PRIVATE).setTitle("How merc contracts work");
+        EmbedBuilder eb = new EmbedBuilder().setColor(PRIVATE).setTitle("❓  How merc contracts work");
         for (Tier t : tiers.findActive()) {
-            eb.addField(t.name() + " · " + Money.full(t.pricePerHit()) + " per hit", t.requirements(), false);
+            eb.addField(tierIcon(t) + "  " + t.name() + " · " + Money.full(t.pricePerHit()) + " per hit",
+                    tierWho(t), false);
         }
-        eb.addField("Attack types", "**Hospitalize** puts targets in hospital. **Mug** steals from them. "
+        eb.addField("🗡️  Attack types", "**Hospitalize** puts targets in hospital. **Mug** steals from them. "
                 + "One type per contract.", false);
-        eb.addField("Modes", "**Hit count**: a set number of hits per target. "
+        eb.addField("⏱️  Modes", "**Hit count**: a set number of hits per target.\n"
                 + "**Duration**: hit whenever possible between a start and end time.", false);
-        eb.addField("Conditions", "Choose whether targets must be online or away, whether revivable targets "
+        eb.addField("🎛️  Conditions", "Choose whether targets must be online or away, whether revivable targets "
                 + "count, and whether to skip early discharge. Hits that break your conditions aren't billed.", false);
-        eb.addField("Paying", "When the contract ends you get an invoice by DM. Pay the named leader in Torn.", false);
+        eb.addField("💰  Paying", "When the contract ends you get an invoice by DM. Pay the named leader in Torn.",
+                false);
         return eb.build();
     }
 
@@ -120,12 +144,16 @@ public class Panels {
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(new Color(0x3FA39A))
                 .setAuthor("FAMILY X · MERC SERVICE")
-                .setTitle("Become a merc")
-                .setDescription("Get paid for every hospitalisation you land.\n"
-                        + "-# You'll need a Limited API key for the merits check.");
+                .setTitle("🗡️  Become a merc")
+                .setDescription("Earn from every hit you land on a Family X contract.");
+        for (Tier t : tiers.findActive()) {
+            eb.addField(tierIcon(t) + "  " + t.name(), "-# " + tierWho(t), true);
+        }
+        eb.setFooter("You'll need a Limited Torn API key for the merits check");
         return new Panel(eb.build(), List.of(ActionRow.of(
-                Button.primary(CustomId.of("soon", "2", "join"), "Join"),
-                Button.secondary(CustomId.of("soon", "2", "my-profile"), "My profile"))));
+                Button.primary(CustomId.of("soon", "2", "join"), "Join").withEmoji(Emoji.fromUnicode("✅")),
+                Button.secondary(CustomId.of("soon", "2", "my-profile"), "My profile")
+                        .withEmoji(Emoji.fromUnicode("👤")))));
     }
 
     // ------------------------------------------------------------------ tier boards
@@ -134,8 +162,9 @@ public class Panels {
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(new Color(tier.colour()))
                 .setAuthor(tier.name().toUpperCase() + " CONTRACTS")
-                .setTitle("No targets on the board")
-                .setDescription("Targets appear here when a " + tier.name() + " contract is live.");
+                .setTitle(tierIcon(tier) + "  No targets right now")
+                .setDescription("Targets appear here as soon as a " + tier.name() + " contract goes live.\n"
+                        + "-# You'll be pinged when there's work.");
         return new Panel(eb.build(), List.of());
     }
 
@@ -145,7 +174,7 @@ public class Panels {
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(new Color(0xD9A400))
                 .setAuthor("LEADERBOARD")
-                .setTitle("Top mercs")
+                .setTitle("🏆  Top mercs")
                 .setDescription("No hits yet. Standings appear here once contracts start.");
         return new Panel(eb.build(), List.of());
     }
@@ -155,41 +184,63 @@ public class Panels {
     public Panel leaderPanel() {
         int min = settings.minLeaderKeysPerFaction();
         Map<Long, FactionKeyCount> counts = keys.leaderKeyCountsByFaction();
-        StringBuilder keyLine = new StringBuilder();
-        boolean anyBelow = false;
-        for (FamilyFaction f : factions.findActive()) {
-            FactionKeyCount c = counts.getOrDefault(f.tornFactionId(), new FactionKeyCount(f.tornFactionId(), 0, 0, 0));
-            boolean below = c.healthy() < min;
-            anyBelow |= below;
-            if (!keyLine.isEmpty()) keyLine.append(" · ");
-            keyLine.append(f.name()).append(' ').append(c.healthy());
-            if (c.bsp() > 0) keyLine.append(" (").append(c.bsp()).append(" BSP)");
-            if (below) keyLine.append(" ⚠️");
-        }
-        String tierLine = tiers.findActive().stream()
-                .map(t -> t.name() + (t.enabled() ? " on" : " off"))
-                .collect(Collectors.joining(" · "));
+        List<FamilyFaction> family = factions.findActive();
 
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(LEADER)
                 .setAuthor("MERC MANAGERS")
-                .setTitle("Merc control panel")
-                .addField("Leader keys", keyLine.isEmpty() ? "No family factions set up." : keyLine.toString(), false)
-                .addField("Tiers", tierLine, false);
-        if (anyBelow) {
-            eb.setFooter("⚠️ Every faction needs at least " + min + " healthy leader keys. Use Keys to add one.");
+                .setTitle("🛡️  Merc control panel")
+                .setTimestamp(Instant.now())
+                .setFooter("Last updated");
+
+        // ---- leader keys: one tile per faction
+        int short_ = 0;
+        eb.addField("🔑  Leader keys", "-# Each faction needs " + min + " healthy keys to track attacks and payments.",
+                false);
+        for (FamilyFaction f : family) {
+            FactionKeyCount c = counts.getOrDefault(f.tornFactionId(), new FactionKeyCount(f.tornFactionId(), 0, 0, 0));
+            String dot = c.healthy() >= min ? "🟢" : c.healthy() > 0 ? "🟠" : "🔴";
+            if (c.healthy() < min) short_++;
+            String value = "**" + c.healthy() + " / " + min + "** keys"
+                    + (c.bsp() > 0 ? "\n-# " + c.bsp() + " with BSP" : "\n-# no BSP");
+            eb.addField(dot + "  " + f.name(), value, true);
         }
+        pad(eb, family.size());
+
+        // ---- tiers
+        List<Tier> tierList = tiers.findActive();
+        eb.addField("🏷️  Tiers", "​", false);
+        for (Tier t : tierList) {
+            eb.addField(tierIcon(t) + "  " + t.name(),
+                    Money.shortForm(t.pricePerHit()) + " per hit\n-# " + (t.enabled() ? "✅ on" : "⛔ off"), true);
+        }
+        pad(eb, tierList.size());
+
+        eb.setDescription(family.isEmpty()
+                ? "⚠️ No family factions set up yet. Open **Settings → Factions**."
+                : short_ == 0
+                ? "✅ All factions have enough keys."
+                : "⚠️ **" + short_ + " of " + family.size() + "** factions need more keys. Use **Keys** to add one.");
+
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3", "contracts"), "Contracts"),
-                        Button.secondary(CustomId.of("soon", "4", "invoices-payouts"), "Invoices & payouts"),
-                        Button.secondary(CustomId.of("soon", "5", "mercs"), "Mercs"),
-                        Button.secondary(CustomId.of("soon", "5", "requesters"), "Requesters")),
+                        Button.secondary(CustomId.of("soon", "3", "contracts"), "Contracts")
+                                .withEmoji(Emoji.fromUnicode("📋")),
+                        Button.secondary(CustomId.of("soon", "4", "invoices-payouts"), "Invoices & payouts")
+                                .withEmoji(Emoji.fromUnicode("💰")),
+                        Button.secondary(CustomId.of("soon", "5", "mercs"), "Mercs")
+                                .withEmoji(Emoji.fromUnicode("🗡️")),
+                        Button.secondary(CustomId.of("soon", "5", "requesters"), "Requesters")
+                                .withEmoji(Emoji.fromUnicode("🧾"))),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "2", "tiers-pricing"), "Tiers & pricing"),
-                        Button.secondary(CustomId.of("soon", "5", "reports"), "Reports"),
-                        Button.primary(CustomId.of("keys", "view"), "Keys"),
-                        Button.primary(CustomId.of("settings", "view"), "Settings"))));
+                        Button.secondary(CustomId.of("soon", "2", "tiers-pricing"), "Tiers & pricing")
+                                .withEmoji(Emoji.fromUnicode("🏷️")),
+                        Button.secondary(CustomId.of("soon", "5", "reports"), "Reports")
+                                .withEmoji(Emoji.fromUnicode("📊")),
+                        Button.primary(CustomId.of("keys", "view"), "Keys")
+                                .withEmoji(Emoji.fromUnicode("🔑")),
+                        Button.primary(CustomId.of("settings", "view"), "Settings")
+                                .withEmoji(Emoji.fromUnicode("⚙️")))));
     }
 
     // ------------------------------------------------------------------ #merc-payouts
@@ -198,8 +249,36 @@ public class Panels {
         EmbedBuilder eb = new EmbedBuilder()
                 .setColor(BRAND)
                 .setAuthor(faction.name().toUpperCase() + " PAYOUTS")
-                .setTitle("Nothing owed yet")
+                .setTitle("💰  Nothing owed yet")
                 .setDescription("Merc shares and settlements for " + faction.name() + " appear here.");
         return new Panel(eb.build(), List.of());
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    static String tierIcon(Tier t) {
+        return switch (t.rank()) {
+            case 1 -> "🥉";
+            case 2 -> "🥈";
+            case 3 -> "🥇";
+            default -> "🏷️";
+        };
+    }
+
+    /** Who does the hits at this tier, in requester-friendly words. */
+    static String tierWho(Tier t) {
+        if (t.requiresStricken()) return "10/10 merits, max hosp perk and Stricken";
+        if (t.requiresMerits()) return "10/10 merits and max hosp perk";
+        return "Any merc";
+    }
+
+    /** Pads an inline-field grid to a multiple of three so the next section starts on its own line. */
+    private static void pad(EmbedBuilder eb, int tiles) {
+        int remainder = tiles % 3;
+        if (remainder != 0) {
+            for (int i = remainder; i < 3; i++) {
+                eb.addField(SPACER);
+            }
+        }
     }
 }

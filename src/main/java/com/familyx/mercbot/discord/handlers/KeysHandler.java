@@ -17,6 +17,7 @@ import com.familyx.mercbot.keys.ApiKeyService;
 import com.familyx.mercbot.keys.ApiKeyService.AddResult;
 import com.familyx.mercbot.settings.BotSettings;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
@@ -132,21 +133,28 @@ public class KeysHandler implements InteractionHandler {
     private Screen view(long user, String notice) {
         int min = settings.minLeaderKeysPerFaction();
         Map<Long, FactionKeyCount> counts = repo.leaderKeyCountsByFaction();
-        EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setTitle("Leader API keys");
+        EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setAuthor("MERC MANAGERS")
+                .setTitle("🔑  Leader API keys");
+        int tiles = 0;
         for (FamilyFaction f : factions.findActive()) {
             FactionKeyCount c = counts.getOrDefault(f.tornFactionId(), new FactionKeyCount(f.tornFactionId(), 0, 0, 0));
-            String status = c.healthy() >= min ? "✅" : "⚠️ below the minimum of " + min;
-            eb.addField(f.name(), c.healthy() + " healthy of " + c.total() + " · " + c.bsp() + " with BSP · " + status,
-                    false);
+            String dot = c.healthy() >= min ? "🟢" : c.healthy() > 0 ? "🟠" : "🔴";
+            eb.addField(dot + "  " + f.name(), "**" + c.healthy() + " / " + min + "** keys"
+                    + (c.total() > c.healthy() ? "\n-# " + (c.total() - c.healthy()) + " not working" : "")
+                    + "\n-# " + (c.bsp() > 0 ? c.bsp() + " with BSP" : "no BSP"), true);
+            tiles++;
+        }
+        for (int i = tiles % 3; i != 0 && i < 3; i++) {
+            eb.addBlankField(true);
         }
         List<StoredKey> mine = repo.findByOwner(user, Kind.LEADER);
         String yours = mine.isEmpty() ? "You haven't added a key." : mine.stream()
                 .map(k -> (k.healthy() ? "✅ working" : "❌ " + k.unhealthyReason()) + (k.bspActive() ? " · BSP" : ""))
                 .reduce((a, b) -> a + "\n" + b).orElse("");
-        eb.addField("Your keys", yours, false);
+        eb.addField("👤  Your keys", yours, false);
         eb.setDescription((notice == null ? "" : notice + "\n\n") + KEY_USE_STATEMENT);
         return Screen.of(eb.build(), ActionRow.of(
-                Button.primary(CustomId.of("keys", "add"), "Add my key"),
-                Button.danger(CustomId.of("keys", "remove"), "Remove my keys")));
+                Button.primary(CustomId.of("keys", "add"), "Add my key").withEmoji(Emoji.fromUnicode("➕")),
+                Button.danger(CustomId.of("keys", "remove"), "Remove my keys").withEmoji(Emoji.fromUnicode("🗑️"))));
     }
 }

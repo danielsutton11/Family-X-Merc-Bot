@@ -6,6 +6,7 @@ import com.familyx.mercbot.discord.InteractionHandler;
 import com.familyx.mercbot.discord.Panels;
 import com.familyx.mercbot.discord.Screen;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
@@ -33,11 +34,12 @@ public class SettingsHandler implements InteractionHandler {
         Screen.of(
                 new EmbedBuilder()
                         .setColor(Panels.LEADER)
-                        .setTitle("Settings")
-                        .setDescription("Pick a group. Groups that are greyed out arrive in later build phases.")
+                        .setAuthor("MERC MANAGERS")
+                        .setTitle("⚙️  Settings")
+                        .setDescription("Pick a group to change.\n-# Greyed-out groups arrive in later build phases.")
                         .build(),
                 ActionRow.of(
-                        Button.primary(CustomId.of("factions", "view"), "Factions"),
+                        Button.primary(CustomId.of("factions", "view"), "Factions").withEmoji(Emoji.fromUnicode("🏰")),
                         Button.secondary(CustomId.of("soon", "3", "requests"), "Requests").asDisabled(),
                         Button.secondary(CustomId.of("soon", "2", "tiers"), "Tiers").asDisabled(),
                         Button.secondary(CustomId.of("soon", "3", "boards"), "Boards").asDisabled()),

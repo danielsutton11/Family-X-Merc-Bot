@@ -12,6 +12,7 @@ import com.familyx.mercbot.faction.FamilyFactionRepository;
 import com.familyx.mercbot.faction.FamilyFactionRepository.FamilyFaction;
 import com.familyx.mercbot.torn.TornKeyPool;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -156,20 +157,20 @@ public class FactionsHandler implements InteractionHandler {
     // ------------------------------------------------------------------ screens
 
     private Screen list(String notice) {
-        EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setTitle("Family X factions");
+        EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setAuthor("SETTINGS")
+                .setTitle("🏰  Family X factions");
         if (notice != null) {
             eb.setDescription(notice);
         }
         for (FamilyFaction f : factions.findActive()) {
-            eb.addField(f.name() + " [" + f.tornFactionId() + "]",
-                    f.leaderRoleId() == null ? "⚠️ No leader role set" : "Leaders: <@&" + f.leaderRoleId() + ">",
-                    false);
+            eb.addField(f.name(), "-# ID " + f.tornFactionId() + "\n"
+                    + (f.leaderRoleId() == null ? "⚠️ No leader role" : "<@&" + f.leaderRoleId() + ">"), true);
         }
         return Screen.of(eb.build(),
                 ActionRow.of(
-                        Button.primary(CustomId.of("factions", "add"), "Add faction"),
-                        Button.secondary(CustomId.of("factions", "role"), "Set leader role"),
-                        Button.danger(CustomId.of("factions", "remove"), "Remove faction")),
+                        Button.primary(CustomId.of("factions", "add"), "Add faction").withEmoji(Emoji.fromUnicode("➕")),
+                        Button.secondary(CustomId.of("factions", "role"), "Set leader role").withEmoji(Emoji.fromUnicode("👑")),
+                        Button.danger(CustomId.of("factions", "remove"), "Remove faction").withEmoji(Emoji.fromUnicode("🗑️"))),
                 ActionRow.of(Button.secondary(CustomId.of("settings", "view"), "← Settings")));
     }
 
