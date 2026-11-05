@@ -36,14 +36,14 @@ public class SettingsHandler implements InteractionHandler {
         event.replyEmbeds(eb.build()).setComponents(
                 ActionRow.of(
                         Button.primary(CustomId.of("factions", "view"), "Factions"),
-                        Button.secondary(CustomId.of("soon", "3"), "Requests").asDisabled(),
-                        Button.secondary(CustomId.of("soon", "2"), "Tiers").asDisabled(),
-                        Button.secondary(CustomId.of("soon", "3"), "Boards").asDisabled()),
+                        Button.secondary(CustomId.of("soon", "3", "requests"), "Requests").asDisabled(),
+                        Button.secondary(CustomId.of("soon", "2", "tiers"), "Tiers").asDisabled(),
+                        Button.secondary(CustomId.of("soon", "3", "boards"), "Boards").asDisabled()),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3"), "Claims").asDisabled(),
-                        Button.secondary(CustomId.of("soon", "4"), "Billing").asDisabled(),
-                        Button.secondary(CustomId.of("soon", "4"), "Payments").asDisabled(),
-                        Button.secondary(CustomId.of("soon", "5"), "Alerts").asDisabled()))
+                        Button.secondary(CustomId.of("soon", "3", "claims"), "Claims").asDisabled(),
+                        Button.secondary(CustomId.of("soon", "4", "billing"), "Billing").asDisabled(),
+                        Button.secondary(CustomId.of("soon", "4", "payments"), "Payments").asDisabled(),
+                        Button.secondary(CustomId.of("soon", "5", "alerts"), "Alerts").asDisabled()))
                 .setEphemeral(true).queue();
     }
 }

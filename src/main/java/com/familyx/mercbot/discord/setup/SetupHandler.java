@@ -4,6 +4,8 @@ import com.familyx.mercbot.audit.AuditService;
 import com.familyx.mercbot.discord.Access;
 import com.familyx.mercbot.discord.InteractionHandler;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
+import net.dv8tion.jda.api.requests.ErrorResponse;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -44,7 +46,21 @@ public class SetupHandler implements InteractionHandler {
             return;
         }
         event.deferReply(true).queue();
-        SetupService.Report report = setup.run(event.getGuild());
+        SetupService.Report report;
+        try {
+            report = setup.run(event.getGuild());
+        } catch (ErrorResponseException e) {
+            if (e.getErrorResponse() != ErrorResponse.MISSING_PERMISSIONS) {
+                throw e;
+            }
+            event.getHook().editOriginal("""
+                    ❌ **Setup stopped: the bot is missing a Discord permission.**
+                    Give the bot's role these permissions in Server Settings → Roles, make sure it sits above the \
+                    merc roles, then run `/merc-setup` again (anything already created is reused):
+                    Manage Roles · Manage Channels · View Channels · Send Messages · Embed Links · \
+                    Read Message History · Manage Messages · Create Public Threads · Create Private Threads""").queue();
+            return;
+        }
         String summary = SetupService.summarise(report);
         audit.log(event.getUser().getIdLong(), "SETUP_RUN", "guild",
                 null, Map.of("created", report.created(), "repaired", report.repaired(),

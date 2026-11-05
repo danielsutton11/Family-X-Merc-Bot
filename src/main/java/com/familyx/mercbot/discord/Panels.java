@@ -33,7 +33,20 @@ public class Panels {
     public static final Color BAD = new Color(0xD64545);
 
     /** A message as an embed plus button rows. */
-    public record Panel(MessageEmbed embed, List<ActionRow> rows) { }
+    public record Panel(MessageEmbed embed, List<ActionRow> rows) {
+        /** Discord rejects a message whose components share a custom id; fail early with a clear message. */
+        public Panel {
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (ActionRow row : rows) {
+                for (var component : row.getActionComponents()) {
+                    String id = component.getId();
+                    if (id != null && !seen.add(id)) {
+                        throw new IllegalStateException("Duplicate component id in panel: " + id);
+                    }
+                }
+            }
+        }
+    }
 
     private final TierRepository tiers;
     private final FamilyFactionRepository factions;
@@ -78,10 +91,10 @@ public class Panels {
                         + "\n-# Merc me makes you the target, billed at Gold.");
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
-                        Button.primary(CustomId.of("soon", "3"), "Request a contract"),
-                        Button.secondary(CustomId.of("soon", "3"), "Merc me (Gold)")),
+                        Button.primary(CustomId.of("soon", "3", "request-a-contract"), "Request a contract"),
+                        Button.secondary(CustomId.of("soon", "3", "merc-me-gold"), "Merc me (Gold)")),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3"), "Repeat last contract"),
+                        Button.secondary(CustomId.of("soon", "3", "repeat-last-contract"), "Repeat last contract"),
                         Button.secondary(CustomId.of("help", "requests"), "Help"))));
     }
 
@@ -111,8 +124,8 @@ public class Panels {
                 .setDescription("Get paid for every hospitalisation you land.\n"
                         + "-# You'll need a Limited API key for the merits check.");
         return new Panel(eb.build(), List.of(ActionRow.of(
-                Button.primary(CustomId.of("soon", "2"), "Join"),
-                Button.secondary(CustomId.of("soon", "2"), "My profile"))));
+                Button.primary(CustomId.of("soon", "2", "join"), "Join"),
+                Button.secondary(CustomId.of("soon", "2", "my-profile"), "My profile"))));
     }
 
     // ------------------------------------------------------------------ tier boards
@@ -168,13 +181,13 @@ public class Panels {
         }
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3"), "Contracts"),
-                        Button.secondary(CustomId.of("soon", "4"), "Invoices & payouts"),
-                        Button.secondary(CustomId.of("soon", "5"), "Mercs"),
-                        Button.secondary(CustomId.of("soon", "5"), "Requesters")),
+                        Button.secondary(CustomId.of("soon", "3", "contracts"), "Contracts"),
+                        Button.secondary(CustomId.of("soon", "4", "invoices-payouts"), "Invoices & payouts"),
+                        Button.secondary(CustomId.of("soon", "5", "mercs"), "Mercs"),
+                        Button.secondary(CustomId.of("soon", "5", "requesters"), "Requesters")),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "2"), "Tiers & pricing"),
-                        Button.secondary(CustomId.of("soon", "5"), "Reports"),
+                        Button.secondary(CustomId.of("soon", "2", "tiers-pricing"), "Tiers & pricing"),
+                        Button.secondary(CustomId.of("soon", "5", "reports"), "Reports"),
                         Button.primary(CustomId.of("keys", "view"), "Keys"),
                         Button.primary(CustomId.of("settings", "view"), "Settings"))));
     }

@@ -19,7 +19,10 @@ Buttons for later phases reply with "arrives in build phase N".
 1. In the [Discord developer portal](https://discord.com/developers/applications), create an application and a bot, and copy the token.
 2. Under **Bot**, turn on **Server Members Intent** (needed from phase 2 to give out merc roles).
 3. Invite the bot with the `bot` and `applications.commands` scopes and these permissions:
-   Manage Roles, Manage Channels, View Channels, Send Messages, Embed Links, Read Message History, Manage Messages.
+   Manage Roles, Manage Channels, View Channels, Send Messages, Embed Links, Read Message History, Manage Messages,
+   Create Public Threads, Create Private Threads (needed so the bot can stop members starting threads in read-only channels).
+   Invite link with exactly these permissions:
+   `https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot%20applications.commands&permissions=103347743760`
 4. In Server Settings → Roles, drag the bot's role **above** the roles it will manage (Merc, 10/10 Merits, Stricken, Bronze, Silver, Gold).
 
 ## 2. Railway

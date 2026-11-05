@@ -32,7 +32,13 @@ public class KeyCipher {
         if (props.keyMaster() == null || props.keyMaster().isBlank()) {
             throw new IllegalStateException("MERC_KEY_MASTER is not set. Generate one with: openssl rand -base64 32");
         }
-        byte[] raw = Base64.getDecoder().decode(props.keyMaster().trim());
+        byte[] raw;
+        try {
+            raw = Base64.getDecoder().decode(props.keyMaster().trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("MERC_KEY_MASTER isn't valid base64. Paste the OUTPUT of "
+                    + "'openssl rand -base64 32' (44 characters ending in '='), not the command itself.");
+        }
         if (raw.length != 32) {
             throw new IllegalStateException("MERC_KEY_MASTER must decode to 32 bytes (got " + raw.length + ")");
         }
