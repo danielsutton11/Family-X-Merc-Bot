@@ -157,21 +157,29 @@ public class FactionsHandler implements InteractionHandler {
     // ------------------------------------------------------------------ screens
 
     private Screen list(String notice) {
+        var active = factions.findActive();
+        long missing = active.stream().filter(f -> f.leaderRoleId() == null).count();
+        String summary = missing == 0
+                ? "✅ **" + active.size() + "** factions, all with a leader role."
+                : "⚠️ **" + missing + " of " + active.size() + "** factions have no leader role. Use **Set leader role**.";
         EmbedBuilder eb = new EmbedBuilder().setColor(Panels.LEADER).setAuthor("SETTINGS")
-                .setTitle("🏰  Family X factions");
-        if (notice != null) {
-            eb.setDescription(notice + Panels.GAP);
+                .setTitle("🏰  Family X factions")
+                .setDescription((notice == null ? "" : notice + "\n\n") + summary + Panels.GAP)
+                .setFooter("Each leader role sees and handles its faction's payouts");
+        for (FamilyFaction f : active) {
+            boolean hasRole = f.leaderRoleId() != null;
+            eb.addField((hasRole ? "🟢  " : "🟠  ") + f.name(),
+                    (hasRole ? "<@&" + f.leaderRoleId() + ">" : "No leader role")
+                            + "\n-# ID " + f.tornFactionId() + Panels.GAP, true);
         }
-        for (FamilyFaction f : factions.findActive()) {
-            eb.addField(f.name(), "-# ID " + f.tornFactionId() + "\n"
-                    + (f.leaderRoleId() == null ? "⚠️ No leader role" : "<@&" + f.leaderRoleId() + ">") + Panels.GAP, true);
+        for (int i = active.size() % 3; i != 0 && i < 3; i++) {
+            eb.addBlankField(true);
         }
-        return Screen.of(eb.build(),
-                ActionRow.of(
-                        Button.primary(CustomId.of("factions", "add"), "Add faction").withEmoji(Emoji.fromUnicode("➕")),
-                        Button.secondary(CustomId.of("factions", "role"), "Set leader role").withEmoji(Emoji.fromUnicode("👑")),
-                        Button.danger(CustomId.of("factions", "remove"), "Remove faction").withEmoji(Emoji.fromUnicode("🗑️"))),
-                ActionRow.of(Button.secondary(CustomId.of("settings", "view"), "← Settings")));
+        return Screen.of(eb.build(), ActionRow.of(
+                Button.secondary(CustomId.of("settings", "view"), "Settings").withEmoji(Emoji.fromUnicode("⬅️")),
+                Button.primary(CustomId.of("factions", "add"), "Add faction").withEmoji(Emoji.fromUnicode("➕")),
+                Button.secondary(CustomId.of("factions", "role"), "Set leader role").withEmoji(Emoji.fromUnicode("👑")),
+                Button.danger(CustomId.of("factions", "remove"), "Remove faction").withEmoji(Emoji.fromUnicode("🗑️"))));
     }
 
     private Screen picker(String title, String prompt, String sub, boolean excludeHome) {
