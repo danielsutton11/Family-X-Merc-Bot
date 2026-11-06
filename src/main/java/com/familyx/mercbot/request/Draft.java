@@ -26,6 +26,9 @@ public class Draft {
     public String requesterFactionName;
     public boolean requesterRevivable;
 
+    // first screen: Faction request (true) or Personal request (false)
+    public Boolean factionRequest;
+
     // step 1
     public Integer tierId;
     public ForTarget forTarget;

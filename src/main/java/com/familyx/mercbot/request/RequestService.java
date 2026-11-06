@@ -404,6 +404,7 @@ public class RequestService {
                 ? (c.myFaction() ? (who.requesterFactionId != null && who.requesterFactionId.equals(c.targetFactionId())
                 ? Choices.ForTarget.MY_FACTION_MINE : Choices.ForTarget.MY_FACTION_OTHER) : Choices.ForTarget.PERSONAL_FACTION)
                 : (c.myFaction() ? Choices.ForTarget.MY_FACTION_PLAYERS : Choices.ForTarget.PERSONAL_PLAYERS);
+        d.factionRequest = d.forTarget.myFaction;
         d.conditions = c.conditions();
         d.posture = c.posture();
         d.notes = c.notes();
@@ -455,6 +456,7 @@ public class RequestService {
     /** Merc me: the requester is the only target, always Gold, one hit (scope doc 4.1, scenario F). */
     public void prepareMercMe(Draft d) {
         d.mercMe = true;
+        d.factionRequest = false;
         d.forTarget = Choices.ForTarget.PERSONAL_PLAYERS;
         d.tierId = goldTier().map(Tier::id).orElse(null);
         d.attack = Choices.Attack.HOSPITALIZE;

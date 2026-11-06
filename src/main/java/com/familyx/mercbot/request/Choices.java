@@ -7,15 +7,17 @@ public final class Choices {
     }
 
     /**
-     * "Request for" and "Target" in one menu: Discord allows only five rows of menus and buttons
-     * per message, so the scope's two menus are merged.
+     * Request for (Personal or Faction request, chosen on the first screen) and the target.
+     * The target menu in step 1 lists only the options for the chosen request type.
      */
     public enum ForTarget {
-        PERSONAL_PLAYERS("Personal → Target: player/s", false, Kind.PLAYERS),
-        PERSONAL_FACTION("Personal → Target: a faction", false, Kind.FACTION),
-        MY_FACTION_PLAYERS("My faction → Target: player/s", true, Kind.PLAYERS),
-        MY_FACTION_OTHER("My faction → Target: another faction", true, Kind.FACTION),
-        MY_FACTION_MINE("My faction → Target: my faction", true, Kind.OWN_FACTION);
+        // Faction request targets, in menu order
+        MY_FACTION_MINE("My Faction (Defensive)", true, Kind.OWN_FACTION),
+        MY_FACTION_OTHER("Another Faction (Offensive)", true, Kind.FACTION),
+        MY_FACTION_PLAYERS("Player(s)", true, Kind.PLAYERS),
+        // Personal request targets, in menu order
+        PERSONAL_PLAYERS("Player(s)", false, Kind.PLAYERS),
+        PERSONAL_FACTION("A faction", false, Kind.FACTION);
 
         public final String label;
         public final boolean myFaction;

@@ -106,11 +106,17 @@ public class RequestHandler implements InteractionHandler {
                                 .setContent("Request cancelled. Nothing was placed.").build())
                         .queue(h -> AutoDismiss.after(h, AutoDismiss.SHORT));
             }
-            case "back1", "restart" -> withDraft(event, d -> {
+            case "back1" -> withDraft(event, d -> {
                 d.mercMe = false;
                 d.repeatOfRef = null;
                 d.resetDetails();
                 step1(d, null).show(event);
+            });
+            case "restart", "who0" -> withDraft(event, d -> {
+                d.mercMe = false;
+                d.repeatOfRef = null;
+                d.resetDetails();
+                who(d).show(event);
             });
             case "all" -> withDraft(event, d -> {
                 d.allMembers = true;
@@ -170,7 +176,7 @@ public class RequestHandler implements InteractionHandler {
             default -> {
                 prefillFromLast(d);
                 drafts.put(user, d);
-                step1(d, null).show(hook);
+                who(d).show(hook);
             }
         }
     }
@@ -194,6 +200,13 @@ public class RequestHandler implements InteractionHandler {
         switch (id.sub()) {
             case "tier" -> withDraft(event, d -> {
                 d.tierId = Integer.parseInt(v);
+                step1(d, null).show(event);
+            });
+            case "who" -> withDraft(event, d -> {
+                d.factionRequest = "faction".equals(v);
+                if (d.forTarget != null && d.forTarget.myFaction != d.factionRequest) {
+                    d.forTarget = null;
+                }
                 step1(d, null).show(event);
             });
             case "for" -> withDraft(event, d -> {
@@ -400,13 +413,34 @@ public class RequestHandler implements InteractionHandler {
 
     // ------------------------------------------------------------------ screens
 
+    /** The first screen: Personal request or Faction request. Picking one goes straight to step 1. */
+    private Screen who(Draft d) {
+        EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT")
+                .setTitle("⚔️  Who's this request for?")
+                .setDescription("**Personal request**: your own. Personal discounts apply.\n"
+                        + "**Faction request**: on behalf of your faction. Your faction's discount applies." + Panels.GAP);
+        StringSelectMenu.Builder menu = StringSelectMenu.create(CustomId.of("req", "who")).setPlaceholder("Choose…")
+                .addOption("Personal request", "personal", null, Emoji.fromUnicode("👤"));
+        if (d.requesterFactionId != null) {
+            menu.addOption("Faction request", "faction",
+                    d.requesterFactionName == null ? null : "For " + d.requesterFactionName, Emoji.fromUnicode("🏰"));
+        }
+        return Screen.of(eb.build(), ActionRow.of(menu.build()),
+                ActionRow.of(Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️"))));
+    }
+
     private Screen step1(Draft d, String notice) {
+        if (d.factionRequest == null) {
+            return who(d);
+        }
         List<Tier> offered = service.offeredTiers();
+        String forLine = d.factionRequest
+                ? "For: **Faction request**" + (d.requesterFactionName == null ? "" : " (" + d.requesterFactionName + ")")
+                : "For: **Personal request**";
         EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT · STEP 1 OF 3")
                 .setTitle("⚔️  What do you need?")
-                .setDescription((notice == null ? "" : notice + "\n\n") + "Pick each option, then press Next." + Panels.GAP)
-                .addField("\u200b", "-# Family members' My faction requests go live straight away. Gold discounts: personal "
-                        + "ones apply to Personal requests, faction ones to My faction requests.", false);
+                .setDescription((notice == null ? "" : notice + "\n\n") + forLine + "\nPick each option, then press Next."
+                        + Panels.GAP);
         if (offered.isEmpty()) {
             return Screen.of(notice(Panels.WARN, "No tiers are available right now", "Check back soon.").build(),
                     ActionRow.of(Button.secondary(CustomId.of("req", "cancel"), "Close")));
@@ -419,9 +453,11 @@ public class RequestHandler implements InteractionHandler {
         if (d.tierId != null && offered.stream().anyMatch(t -> t.id() == d.tierId)) {
             tier.setDefaultValues(Integer.toString(d.tierId));
         }
-        StringSelectMenu.Builder forT = StringSelectMenu.create(CustomId.of("req", "for")).setPlaceholder("For → target…");
+        StringSelectMenu.Builder forT = StringSelectMenu.create(CustomId.of("req", "for")).setPlaceholder("Target…");
         for (ForTarget f : ForTarget.values()) {
-            forT.addOption("For: " + f.label, f.name(), null, Emoji.fromUnicode("🎯"));
+            if (f.myFaction == d.factionRequest) {
+                forT.addOption("Target: " + f.label, f.name(), null, Emoji.fromUnicode("🎯"));
+            }
         }
         if (d.forTarget != null) {
             forT.setDefaultValues(d.forTarget.name());
@@ -440,9 +476,10 @@ public class RequestHandler implements InteractionHandler {
             mode.setDefaultValues(d.mode.name());
         }
         Button next = Button.primary(CustomId.of("req", "next"), "Next: details").withEmoji(Emoji.fromUnicode("➡️"));
-        return Screen.of(eb.build(), ActionRow.of(tier.build()), ActionRow.of(forT.build()), ActionRow.of(attack.build()),
+        return Screen.of(eb.build(), ActionRow.of(forT.build()), ActionRow.of(tier.build()), ActionRow.of(attack.build()),
                 ActionRow.of(mode.build()),
-                ActionRow.of(Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️")),
+                ActionRow.of(Button.secondary(CustomId.of("req", "who0"), "Back").withEmoji(Emoji.fromUnicode("⬅️")),
+                        Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️")),
                         d.step1Complete() ? next : next.asDisabled()));
     }
 
