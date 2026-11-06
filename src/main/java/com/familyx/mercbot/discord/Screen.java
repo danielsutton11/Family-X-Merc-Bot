@@ -13,7 +13,8 @@ import java.util.List;
 /**
  * One private "screen" per person. A click on a pinned (public) panel opens it as a private
  * reply; every click inside that private message replaces its content in place, so
- * navigating never stacks up new messages.
+ * navigating never stacks up new messages. Screens close themselves after about 15 minutes
+ * without a click (see {@link ScreenTimeout}).
  */
 public record Screen(MessageEmbed embed, List<ActionRow> rows) {
 
@@ -24,15 +25,16 @@ public record Screen(MessageEmbed embed, List<ActionRow> rows) {
     /** Shows the screen: edits the private message if clicked inside one, otherwise opens one. */
     public void show(GenericComponentInteractionCreateEvent event) {
         if (event.getMessage().isEphemeral()) {
-            event.editMessage(editData()).queue();
+            long messageId = event.getMessage().getIdLong();
+            event.editMessage(editData()).queue(hook -> ScreenTimeout.restart(messageId, hook));
         } else {
-            event.replyEmbeds(embed).setComponents(rows).setEphemeral(true).queue();
+            event.replyEmbeds(embed).setComponents(rows).setEphemeral(true).queue(ScreenTimeout::restart);
         }
     }
 
     /** After {@code deferEdit()}, for work that takes more than a moment (Torn API calls). */
     public void show(InteractionHook hook) {
-        hook.editOriginal(editData()).queue();
+        hook.editOriginal(editData()).queue(message -> ScreenTimeout.restart(message.getIdLong(), hook));
     }
 
     /**
