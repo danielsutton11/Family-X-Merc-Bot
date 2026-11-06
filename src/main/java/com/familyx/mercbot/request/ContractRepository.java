@@ -38,7 +38,7 @@ public class ContractRepository {
                            Posture posture, int tierId, long unitPrice, BigDecimal discountPct, Attack attack,
                            Mode mode, Instant startsAt, Instant endsAt, Integer hitsPerTarget, boolean factionTarget,
                            Long targetFactionId, String targetFactionName, boolean allMembers, Conditions conditions,
-                           String notes, String status, Long approvalMessageId) { }
+                           String notes, String status, Long approvalMessageId, Instant createdAt) { }
 
     private final JdbcClient jdbc;
 
@@ -92,6 +92,19 @@ public class ContractRepository {
                         SELECT * FROM contract WHERE requester_id = ? AND status NOT IN ('QUOTED', 'EXPIRED')
                         ORDER BY created_at DESC, id DESC LIMIT 1""")
                 .param(requesterId).query(this::map).optional();
+    }
+
+    /** The requester's most recent placed contracts, newest first (for the Repeat picker). */
+    public List<Contract> recentFor(long requesterId, int limit) {
+        return jdbc.sql("""
+                        SELECT * FROM contract WHERE requester_id = ? AND status NOT IN ('QUOTED', 'EXPIRED')
+                        ORDER BY created_at DESC, id DESC LIMIT ?""")
+                .params(requesterId, limit).query(this::map).list();
+    }
+
+    public Optional<String> firstTargetName(long contractId) {
+        return jdbc.sql("SELECT target_name FROM contract_target WHERE contract_id = ? ORDER BY id LIMIT 1")
+                .param(contractId).query(String.class).optional();
     }
 
     public List<Long> targetIds(long contractId) {
@@ -149,6 +162,7 @@ public class ContractRepository {
                 rs.getString("target_faction_name"), "ALL".equals(rs.getString("member_selection")),
                 new Conditions(Status.valueOf(rs.getString("status_condition")), awayMinutes,
                         rs.getBoolean("allow_revivable"), rs.getBoolean("allow_early_discharge")),
-                rs.getString("notes"), rs.getString("status"), nullableLong(rs, "approval_message_id"));
+                rs.getString("notes"), rs.getString("status"), nullableLong(rs, "approval_message_id"),
+                instant(rs, "created_at"));
     }
 }

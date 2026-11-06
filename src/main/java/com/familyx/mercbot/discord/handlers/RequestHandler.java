@@ -169,14 +169,14 @@ public class RequestHandler implements InteractionHandler {
                 showQuote(hook, d);
             }
             case "repeat" -> {
-                Draft repeated = service.repeat(d);
-                if (repeated == null) {
+                List<Contract> recent = contracts.recentFor(d.requesterTornId, 5);
+                if (recent.isEmpty()) {
                     closing(hook, notice(BLUE, "🔁  Nothing to repeat",
                             "You haven't placed a contract yet. Use **Request a contract**."), AutoDismiss.SHORT);
                     return;
                 }
-                drafts.put(user, repeated);
-                showQuote(hook, repeated);
+                drafts.put(user, d);
+                repeatPicker(recent, null).show(hook);
             }
             default -> {
                 prefillFromLast(d);
@@ -206,6 +206,18 @@ public class RequestHandler implements InteractionHandler {
             case "tier" -> withDraft(event, d -> {
                 d.tierId = Integer.parseInt(v);
                 step1(d, null).show(event);
+            });
+            case "repeatpick" -> withDraft(event, d -> {
+                InteractionHook hook = Screen.deferInPlace(event);
+                Draft repeated = service.repeat(d, Long.parseLong(v));
+                if (repeated == null) {
+                    repeatPicker(contracts.recentFor(d.requesterTornId, 5),
+                            "❌ That contract can't be repeated: its tier was retired or its targets can't be found.")
+                            .show(hook);
+                    return;
+                }
+                drafts.put(event.getUser().getIdLong(), repeated);
+                showQuote(hook, repeated);
             });
             case "who" -> withDraft(event, d -> {
                 d.factionRequest = "faction".equals(v);
@@ -411,6 +423,40 @@ public class RequestHandler implements InteractionHandler {
     }
 
     // ------------------------------------------------------------------ screens
+
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM").withZone(ZoneOffset.UTC);
+
+    /** Repeat: the requester's last 5 contracts to choose from. */
+    private Screen repeatPicker(List<Contract> recent, String notice) {
+        EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("REPEAT A CONTRACT")
+                .setTitle("🔁  Which contract?")
+                .setDescription((notice == null ? "" : notice + "\n\n") + "Your last " + recent.size()
+                        + (recent.size() == 1 ? " contract" : " contracts, newest first")
+                        + ". Pick one to get a fresh quote with the same choices." + Panels.GAP);
+        StringSelectMenu.Builder menu = StringSelectMenu.create(CustomId.of("req", "repeatpick"))
+                .setPlaceholder("Choose a contract…");
+        for (Contract c : recent) {
+            java.util.Optional<Tier> tier = service.tier(c.tierId());
+            int count = contracts.targetCount(c.id());
+            String target = c.mercMe() ? "Merc me"
+                    : c.factionTarget() ? c.targetFactionName() + " (" + count + ")"
+                    : count == 1 ? contracts.firstTargetName(c.id()).orElse("1 player") : count + " players";
+            String label = c.ref() + " · " + tier.map(Tier::name).orElse("Retired tier") + " · " + target;
+            String amount = c.mode() == Mode.HITS
+                    ? c.hitsPerTarget() + " hit" + (c.hitsPerTarget() == 1 ? "" : "s") + (count > 1 ? " each" : "")
+                    : "Duration";
+            String desc = (c.myFaction() ? "Faction request" : "Personal request") + " · " + c.attack().label + " · "
+                    + amount + (c.createdAt() == null ? "" : " · " + DAY.format(c.createdAt()));
+            menu.addOption(trim(label, 100), Long.toString(c.id()), trim(desc, 100),
+                    Emoji.fromUnicode(tier.map(Panels::tierIcon).orElse("🏷️")));
+        }
+        return Screen.of(eb.build(), ActionRow.of(menu.build()),
+                ActionRow.of(Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️"))));
+    }
+
+    private static String trim(String text, int max) {
+        return text.length() <= max ? text : text.substring(0, max - 1) + "…";
+    }
 
     /** The first screen: Personal request or Faction request. Picking one goes straight to step 1. */
     private Screen who(Draft d) {

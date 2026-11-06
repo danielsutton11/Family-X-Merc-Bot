@@ -181,6 +181,11 @@ public class RequestService {
         return tiers.findActive().stream().filter(Tier::offered).toList();
     }
 
+    /** An active tier by id (empty if it has been retired). */
+    public Optional<Tier> tier(int tierId) {
+        return tiers.find(tierId);
+    }
+
     /** Merc me is always the Gold tier (the highest tier that needs Stricken). */
     public Optional<Tier> goldTier() {
         return tiers.findActive().stream().filter(Tier::requiresStricken).max(Comparator.comparingInt(Tier::rank))
@@ -387,14 +392,15 @@ public class RequestService {
 
     // ------------------------------------------------------------------ repeat last (4.1)
 
-    /** Rebuilds a draft from the requester's last contract, or returns null if there isn't one. */
-    public Draft repeat(Draft who) {
-        Optional<Contract> last = contracts.lastFor(who.requesterTornId);
-        if (last.isEmpty()) {
+    /** Rebuilds a draft from one of the requester's own contracts, or returns null if it can't be repeated. */
+    public Draft repeat(Draft who, long contractId) {
+        Optional<Contract> found = contracts.find(contractId).filter(c -> c.requesterId() == who.requesterTornId);
+        if (found.isEmpty()) {
             return null;
         }
-        Contract c = last.get();
+        Contract c = found.get();
         Draft d = who;
+        d.resetDetails(); // start clean, keeping who the requester is
         d.repeatOfRef = c.ref();
         d.mercMe = c.mercMe();
         d.tierId = c.tierId();
