@@ -381,6 +381,7 @@ public class RequestService {
         if (!live) {
             approvals.post(c, d, q, score);
         }
+        dms.send(discordId, ContractSummary.build(c, d, q, live));
         return new AcceptResult.Placed(c, live);
     }
 
