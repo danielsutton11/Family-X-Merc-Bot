@@ -118,6 +118,10 @@ public class RequestHandler implements InteractionHandler {
                 d.resetDetails();
                 who(d).show(event);
             });
+            case "pickmode" -> withDraft(event, d -> {
+                d.allMembers = false;
+                members(d, null).show(event);
+            });
             case "all" -> withDraft(event, d -> {
                 d.allMembers = true;
                 d.picked.clear();
@@ -537,14 +541,17 @@ public class RequestHandler implements InteractionHandler {
                 : d.picked.isEmpty() ? "Nobody yet" : d.picked.size() + " picked";
         EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT · STEP 2 OF 3")
                 .setTitle("👥  " + d.factionName + " [" + d.factionId + "] · " + d.factionMembers.size() + " members")
-                .setDescription((notice == null ? "" : notice + "\n\n") + "Hit everyone, or pick members below." + Panels.GAP)
+                .setDescription((notice == null ? "" : notice + "\n\n") + (d.allMembers ? "Every member is targeted. Press **Pick members** to choose some instead."
+                        : "Pick members from the lists below, or press **All members** to target everyone.") + Panels.GAP)
                 .addField("Picked", picked, false);
         List<ActionRow> rows = new ArrayList<>();
         int lists = Math.min(MAX_LISTS, (d.factionMembers.size() + LIST_SIZE - 1) / LIST_SIZE);
-        if (d.factionMembers.size() > MAX_LISTS * LIST_SIZE) {
+        boolean tooBig = d.factionMembers.size() > MAX_LISTS * LIST_SIZE;
+        if (tooBig) {
             eb.addField("\u200b", "-# This faction is too big to pick members one by one, so only All members is available.",
                     false);
-        } else {
+        } else if (!d.allMembers) {
+            // The A–Z lists only appear once "Pick members" is pressed.
             for (int i = 0; i < lists; i++) {
                 List<Player> chunk = chunk(d.factionMembers, i);
                 StringSelectMenu.Builder menu = StringSelectMenu.create(CustomId.of("req", "pick", i))
@@ -566,8 +573,10 @@ public class RequestHandler implements InteractionHandler {
                 : Button.primary(CustomId.of("req", "quote"), "Get quote").withEmoji(Emoji.fromUnicode("➡️"));
         rows.add(ActionRow.of(
                 Button.secondary(CustomId.of("req", "back1"), "Back").withEmoji(Emoji.fromUnicode("⬅️")),
-                (d.allMembers ? Button.success(CustomId.of("req", "all"), "All members")
-                        : Button.secondary(CustomId.of("req", "all"), "All members")).withEmoji(Emoji.fromUnicode("👥")),
+                d.allMembers
+                        ? (tooBig ? Button.secondary(CustomId.of("req", "pickmode"), "Pick members").asDisabled()
+                        : Button.secondary(CustomId.of("req", "pickmode"), "Pick members")).withEmoji(Emoji.fromUnicode("☑️"))
+                        : Button.secondary(CustomId.of("req", "all"), "All members").withEmoji(Emoji.fromUnicode("👥")),
                 d.allMembers || !d.picked.isEmpty() ? quote : quote.asDisabled()));
         return new Screen(eb.build(), rows);
     }
@@ -787,9 +796,14 @@ public class RequestHandler implements InteractionHandler {
         if (chunk.isEmpty()) {
             return "—";
         }
-        String first = chunk.getFirst().name().substring(0, 1).toUpperCase();
-        String last = chunk.getLast().name().substring(0, 1).toUpperCase();
+        String first = initial(chunk.getFirst().name());
+        String last = initial(chunk.getLast().name());
         return first.equals(last) ? first : first + "–" + last;
+    }
+
+    /** A name's first letter for list labels; names starting with a symbol or number show as "#". */
+    private static String initial(String name) {
+        return !name.isEmpty() && Character.isLetter(name.charAt(0)) ? name.substring(0, 1).toUpperCase() : "#";
     }
 
     private static String text(ModalInteractionEvent event, String field) {
