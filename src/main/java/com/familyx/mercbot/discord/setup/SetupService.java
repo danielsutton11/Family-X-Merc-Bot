@@ -1,5 +1,7 @@
 package com.familyx.mercbot.discord.setup;
 
+import com.familyx.mercbot.discord.Fancy;
+
 import com.familyx.mercbot.config.BotProperties;
 import com.familyx.mercbot.discord.Layout;
 import com.familyx.mercbot.discord.Panels;
@@ -235,12 +237,19 @@ public class SetupService {
 
     private Category ensureCategory(Guild guild, String key, String name, Report report) {
         Optional<Category> existing = layout.get(key).map(id -> guild.getCategoryById(id))
-                .or(() -> guild.getCategoriesByName(name, true).stream().findFirst());
+                .or(() -> guild.getCategoriesByName(name, true).stream().findFirst())
+                .or(() -> guild.getCategoriesByName(Fancy.category(name), true).stream().findFirst());
         if (existing.isPresent()) {
-            layout.put(key, existing.get().getIdLong());
-            return existing.get();
+            Category cat = existing.get();
+            String styled = Fancy.category(name);
+            if (!cat.getName().equals(styled)) {
+                cat.getManager().setName(styled).complete();
+                report.repaired().add(styled + " category renamed");
+            }
+            layout.put(key, cat.getIdLong());
+            return cat;
         }
-        Category cat = guild.createCategory(name).complete();
+        Category cat = guild.createCategory(Fancy.category(name)).complete();
         layout.put(key, cat.getIdLong());
         report.created().add(name + " category");
         return cat;
@@ -249,7 +258,8 @@ public class SetupService {
     private TextChannel ensureChannel(Guild guild, String key, String name, Category category, Report report,
                                       List<Override> overrides) {
         Optional<TextChannel> existing = layout.get(key).map(id -> guild.getTextChannelById(id))
-                .or(() -> guild.getTextChannelsByName(name, true).stream().findFirst());
+                .or(() -> guild.getTextChannelsByName(name, true).stream().findFirst())
+                .or(() -> guild.getTextChannelsByName(Fancy.channel(name), true).stream().findFirst());
         TextChannel channel = existing.isPresent()
                 ? repair(existing.get(), name, category, overrides, report)
                 : create(guild, name, category, overrides, report);
@@ -261,13 +271,15 @@ public class SetupService {
                                           List<Override> overrides) {
         String name = tier.channelName();
         Optional<TextChannel> existing = Optional.ofNullable(tier.channelId()).map(id -> guild.getTextChannelById(id))
-                .or(() -> guild.getTextChannelsByName(name, true).stream().findFirst());
+                .or(() -> guild.getTextChannelsByName(name, true).stream().findFirst())
+                .or(() -> guild.getTextChannelsByName(Fancy.channel(name), true).stream().findFirst());
         return existing.isPresent()
                 ? repair(existing.get(), name, category, overrides, report)
                 : create(guild, name, category, overrides, report);
     }
 
     private TextChannel create(Guild guild, String name, Category category, List<Override> overrides, Report report) {
+        name = Fancy.channel(name);
         var action = guild.createTextChannel(name, category);
         for (Override o : overrides) {
             action = action.addPermissionOverride(o.holder(), o.allow(), o.deny());
@@ -279,10 +291,12 @@ public class SetupService {
 
     private TextChannel repair(TextChannel channel, String name, Category category, List<Override> overrides,
                                Report report) {
+        // Channels are kept in the server's style ("┃ᴍᴇʀᴄ・ꜱɪɢɴᴜᴘ"); plain names are renamed to it.
+        String styled = Fancy.channel(name);
         TextChannelManager manager = channel.getManager();
         boolean changed = false;
-        if (!channel.getName().equals(name)) {
-            manager = manager.setName(name);
+        if (!channel.getName().equals(styled)) {
+            manager = manager.setName(styled);
             changed = true;
         }
         if (category != null && !category.equals(channel.getParentCategory())) {
@@ -291,7 +305,7 @@ public class SetupService {
         }
         if (changed) {
             manager.complete();
-            report.repaired().add("#" + name + " moved or renamed");
+            report.repaired().add("#" + styled + " moved or renamed");
         }
         applyOverrides(channel, overrides);
         return channel;
