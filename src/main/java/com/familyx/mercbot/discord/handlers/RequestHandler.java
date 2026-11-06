@@ -133,6 +133,7 @@ public class RequestHandler implements InteractionHandler {
             });
             case "quote" -> withDraft(event, d -> showQuote(event, d));
             case "conds" -> withDraft(event, d -> conditions(d, null).show(event));
+            case "awaybtn" -> withDraft(event, d -> event.replyModal(awayModal(d)).queue());
             case "times" -> withDraft(event, d -> {
                 Scenarios.Defaults preview = service.previewDefaults(d);
                 event.replyModal(timesModal(d.start, d.end, preview, "c")).queue();
@@ -243,13 +244,7 @@ public class RequestHandler implements InteractionHandler {
             case "status" -> withDraft(event, d -> {
                 Status s = Status.valueOf(v);
                 if (s == Status.AWAY) {
-                    int current = d.conditions != null && d.conditions.status() == Status.AWAY
-                            ? d.conditions.awayMinutes() : Conditions.DEFAULT_AWAY_MINUTES;
-                    event.replyModal(Modal.create(CustomId.of("req", "awaymin"), "Idle or offline for how long?")
-                            .addComponents(ActionRow.of(TextInput.create("minutes", "Minutes since their last action",
-                                    TextInputStyle.SHORT).setRequired(true).setMaxLength(4)
-                                    .setValue(Integer.toString(current)).build()))
-                            .build()).queue();
+                    event.replyModal(awayModal(d)).queue();
                     return;
                 }
                 d.conditions = base(d).withStatus(s, Conditions.DEFAULT_AWAY_MINUTES);
@@ -528,6 +523,16 @@ public class RequestHandler implements InteractionHandler {
                 .setValue(end == null ? null : INPUT.format(end.atOffset(ZoneOffset.UTC))).build());
     }
 
+    private static Modal awayModal(Draft d) {
+        int current = d.conditions != null && d.conditions.status() == Status.AWAY
+                ? d.conditions.awayMinutes() : Conditions.DEFAULT_AWAY_MINUTES;
+        return Modal.create(CustomId.of("req", "awaymin"), "Idle or offline for how long?")
+                .addComponents(ActionRow.of(TextInput.create("minutes", "Minutes since their last action",
+                        TextInputStyle.SHORT).setRequired(true).setMaxLength(4)
+                        .setValue(Integer.toString(current)).build()))
+                .build();
+    }
+
     private Modal hitsModal(Draft d) {
         return Modal.create(CustomId.of("req", "hitssubmit"), "Change hits")
                 .addComponents(ActionRow.of(TextInput.create("hits", "Hits per target", TextInputStyle.SHORT)
@@ -751,11 +756,16 @@ public class RequestHandler implements InteractionHandler {
             }
             rows.add(ActionRow.of(early.build()));
         }
-        rows.add(ActionRow.of(
-                d.mode == Mode.DURATION
-                        ? Button.secondary(CustomId.of("req", "times"), "Change times").withEmoji(Emoji.fromUnicode("🕒"))
-                        : Button.secondary(CustomId.of("req", "hits"), "Change hits").withEmoji(Emoji.fromUnicode("🔢")),
-                Button.primary(CustomId.of("req", "quote"), "Back to quote").withEmoji(Emoji.fromUnicode("⬅️"))));
+        List<Button> buttons = new ArrayList<>();
+        buttons.add(d.mode == Mode.DURATION
+                ? Button.secondary(CustomId.of("req", "times"), "Change times").withEmoji(Emoji.fromUnicode("🕒"))
+                : Button.secondary(CustomId.of("req", "hits"), "Change hits").withEmoji(Emoji.fromUnicode("🔢")));
+        if (c != null && c.status() == Status.AWAY) {
+            // Picking the already-selected status again doesn't reach the bot, so minutes get their own button.
+            buttons.add(Button.secondary(CustomId.of("req", "awaybtn"), "Change minutes").withEmoji(Emoji.fromUnicode("⏳")));
+        }
+        buttons.add(Button.primary(CustomId.of("req", "quote"), "Back to quote").withEmoji(Emoji.fromUnicode("⬅️")));
+        rows.add(ActionRow.of(buttons));
         return new Screen(eb.build(), rows);
     }
 
