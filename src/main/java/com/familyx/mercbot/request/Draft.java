@@ -42,7 +42,8 @@ public class Draft {
     public Set<Long> picked = new LinkedHashSet<>();
     public Instant startInput;
     public Instant endInput;
-    public boolean endInputGiven;
+    /** The requester has seen and confirmed the times (blank start = now, blank end = no end). */
+    public boolean timesGiven;
     public Integer hitsInput;
     public String notes;
     public boolean confirmedNoWar;
@@ -83,7 +84,7 @@ public class Draft {
         picked = new LinkedHashSet<>();
         startInput = null;
         endInput = null;
-        endInputGiven = false;
+        timesGiven = false;
         hitsInput = null;
         notes = null;
         confirmedNoWar = false;

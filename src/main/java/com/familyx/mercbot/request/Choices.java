@@ -11,11 +11,11 @@ public final class Choices {
      * per message, so the scope's two menus are merged.
      */
     public enum ForTarget {
-        PERSONAL_PLAYERS("Personal → players", false, Kind.PLAYERS),
-        PERSONAL_FACTION("Personal → a faction", false, Kind.FACTION),
-        MY_FACTION_PLAYERS("My faction → players", true, Kind.PLAYERS),
-        MY_FACTION_OTHER("My faction → another faction", true, Kind.FACTION),
-        MY_FACTION_MINE("My faction → my faction", true, Kind.OWN_FACTION);
+        PERSONAL_PLAYERS("Personal → Target: player/s", false, Kind.PLAYERS),
+        PERSONAL_FACTION("Personal → Target: a faction", false, Kind.FACTION),
+        MY_FACTION_PLAYERS("My faction → Target: player/s", true, Kind.PLAYERS),
+        MY_FACTION_OTHER("My faction → Target: another faction", true, Kind.FACTION),
+        MY_FACTION_MINE("My faction → Target: my faction", true, Kind.OWN_FACTION);
 
         public final String label;
         public final boolean myFaction;

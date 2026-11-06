@@ -287,8 +287,13 @@ public class RequestService {
             if (d.conditions == null) {
                 d.conditions = defaults.conditions();
             }
-            d.start = d.startInput != null ? d.startInput : defaults.start();
-            d.end = d.endInputGiven ? d.endInput : defaults.end();
+            if (d.timesGiven) {
+                d.start = d.startInput != null ? d.startInput : now;
+                d.end = d.endInput;
+            } else {
+                d.start = defaults.start();
+                d.end = defaults.end();
+            }
             d.hits = d.hitsInput != null ? d.hitsInput : defaults.hits();
         }
         if (d.scenario == Scenarios.Scenario.G && d.posture == null) {
@@ -324,6 +329,17 @@ public class RequestService {
         Instant expires = now.plus(Duration.ofMinutes(settings.quoteMinutes()));
         return new QuoteResult.Ready(new Quote(tier, tier.pricePerHit(), pct, label, perHit, silverPerHit, count,
                 total, expires));
+    }
+
+    /**
+     * The default times for this request as far as it's known, for pre-filling the times box.
+     * Call once the targets are known (for faction targets, after the faction ID).
+     */
+    public Scenarios.Defaults previewDefaults(Draft d) {
+        Scenarios.War myWar = d.requesterFactionId == null ? null : torn.war(d.requesterFactionId).orElse(null);
+        Scenarios.War targetWar = d.factionId == null || d.mercMe ? null : torn.war(d.factionId).orElse(null);
+        return Scenarios.defaults(new Scenarios.Situation(d.mercMe ? null : d.forTarget, d.mercMe, d.factionId, myWar,
+                targetWar, d.attack, d.posture), Instant.now());
     }
 
     private String factionLabel(long factionId) {

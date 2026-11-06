@@ -44,7 +44,8 @@ public final class Scenarios {
     }
 
     /** Defaults for a quote. {@code conditions} is null when the requester must pick everything. */
-    public record Defaults(Scenario scenario, Conditions conditions, Instant start, Instant end, int hits) { }
+    public record Defaults(Scenario scenario, Conditions conditions, Instant start, Instant end, int hits,
+                           String startNote, String endNote) { }
 
     /** What the scenario depends on. */
     public record Situation(ForTarget forTarget, boolean mercMe, Long targetFactionId, War myWar, War targetWar,
@@ -73,18 +74,23 @@ public final class Scenarios {
         Conditions c;
         Instant start = now;
         Instant end = null;
+        String startNote = "now";
+        String endNote = "no end";
         switch (sc) {
             case A, D -> {
                 c = new Conditions(Status.AWAY, Conditions.DEFAULT_AWAY_MINUTES, false, earlyByRule);
                 if (sc == Scenario.A && s.myWar() != null && s.forTarget().kind == Kind.OWN_FACTION
                         && s.myWar().start().isAfter(now)) {
                     start = s.myWar().start();
+                    startNote = "your war's start";
                 }
                 end = start.plus(Duration.ofHours(24));
+                endNote = "24h after start";
             }
             case B -> {
                 c = new Conditions(Status.ONLINE, Conditions.DEFAULT_AWAY_MINUTES, true, earlyByRule);
                 end = s.myWar().start();
+                endNote = "your war's start";
             }
             case C -> c = new Conditions(Status.ANY, Conditions.DEFAULT_AWAY_MINUTES, true, false);
             case E -> c = new Conditions(Status.ANY, Conditions.DEFAULT_AWAY_MINUTES, true, false);
@@ -92,13 +98,18 @@ public final class Scenarios {
             case G -> {
                 if (s.posture() == Posture.OFFENSIVE) {
                     c = new Conditions(Status.ONLINE, Conditions.DEFAULT_AWAY_MINUTES, true, earlyByRule);
-                    end = s.targetWar().start().isAfter(now) ? s.targetWar().start() : null;
+                    if (s.targetWar().start().isAfter(now)) {
+                        end = s.targetWar().start();
+                        endNote = "their war's start";
+                    }
                 } else {
                     c = new Conditions(Status.AWAY, Conditions.DEFAULT_AWAY_MINUTES, false, earlyByRule);
                     if (s.targetWar().start().isAfter(now)) {
                         start = s.targetWar().start();
+                        startNote = "their war's start";
                     }
                     end = start.plus(Duration.ofHours(24));
+                    endNote = "24h after start";
                 }
             }
             default -> c = null; // active war against the enemy: the requester picks every option
@@ -106,6 +117,6 @@ public final class Scenarios {
         if (c != null && s.attack() == Attack.MUG) {
             c = c.withEarlyDischarge(false);
         }
-        return new Defaults(sc, c, start, end, 1);
+        return new Defaults(sc, c, start, end, 1, startNote, endNote);
     }
 }

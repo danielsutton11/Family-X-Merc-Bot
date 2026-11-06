@@ -92,7 +92,11 @@ public class RequestHandler implements InteractionHandler {
                 if (!d.step1Complete()) {
                     step1(d, "Pick every option first.").show(event);
                 } else {
-                    event.replyModal(detailsModal(d)).queue();
+                    // Times go in this box when the defaults are already known (not for another
+                    // faction, whose war status needs its ID first).
+                    Scenarios.Defaults preview = d.mode == Mode.DURATION && d.forTarget.kind != Kind.FACTION
+                            ? service.previewDefaults(d) : null;
+                    event.replyModal(detailsModal(d, preview)).queue();
                 }
             });
             case "cancel" -> {
@@ -119,7 +123,14 @@ public class RequestHandler implements InteractionHandler {
             });
             case "quote" -> withDraft(event, d -> showQuote(event, d));
             case "conds" -> withDraft(event, d -> conditions(d, null).show(event));
-            case "times" -> withDraft(event, d -> event.replyModal(timesModal(d)).queue());
+            case "times" -> withDraft(event, d -> {
+                Scenarios.Defaults preview = service.previewDefaults(d);
+                event.replyModal(timesModal(d.start, d.end, preview, "c")).queue();
+            });
+            case "timesfirst" -> withDraft(event, d -> {
+                Scenarios.Defaults preview = service.previewDefaults(d);
+                event.replyModal(timesModal(preview.start(), preview.end(), preview, "q")).queue();
+            });
             case "hits" -> withDraft(event, d -> event.replyModal(hitsModal(d)).queue());
             case "accept" -> withDraft(event, d -> accept(event, d));
             default -> event.reply("Unknown option.").setEphemeral(true).queue(h -> AutoDismiss.after(h, AutoDismiss.SHORT));
@@ -268,14 +279,19 @@ public class RequestHandler implements InteractionHandler {
                 conditions(d, null).show(hook);
             }
             case "timesubmit" -> {
-                String error = readTimes(event, d, false);
+                boolean toQuote = "q".equals(id.arg(0));
+                String error = readTimes(event, d);
                 if (error != null) {
-                    conditions(d, "❌ " + error).show(hook);
+                    (toQuote ? members(d, "❌ " + error) : conditions(d, "❌ " + error)).show(hook);
                     return;
                 }
                 d.start = d.startInput != null ? d.startInput : Instant.now();
                 d.end = d.endInput;
-                conditions(d, "🕒 Times saved.").show(hook);
+                if (toQuote) {
+                    showQuote(hook, d);
+                } else {
+                    conditions(d, "🕒 Times saved.").show(hook);
+                }
             }
             case "hitssubmit" -> {
                 Integer hits = intValue(event, "hits");
@@ -305,8 +321,8 @@ public class RequestHandler implements InteractionHandler {
                 return;
             }
             d.hitsInput = hits;
-        } else {
-            String error = readTimes(event, d, true);
+        } else if (d.forTarget.kind != Kind.FACTION) {
+            String error = readTimes(event, d);
             if (error != null) {
                 step1(d, "❌ " + error).show(hook);
                 return;
@@ -430,7 +446,7 @@ public class RequestHandler implements InteractionHandler {
                         d.step1Complete() ? next : next.asDisabled()));
     }
 
-    private Modal detailsModal(Draft d) {
+    private Modal detailsModal(Draft d, Scenarios.Defaults preview) {
         List<ActionRow> rows = new ArrayList<>();
         if (d.forTarget.kind == Kind.PLAYERS) {
             rows.add(ActionRow.of(TextInput.create("players", "Player IDs (up to 25)", TextInputStyle.PARAGRAPH)
@@ -442,28 +458,33 @@ public class RequestHandler implements InteractionHandler {
         if (d.mode == Mode.HITS) {
             rows.add(ActionRow.of(TextInput.create("hits", "Hits per target", TextInputStyle.SHORT)
                     .setRequired(true).setValue("1").setMaxLength(3).build()));
-        } else {
-            rows.add(ActionRow.of(TextInput.create("start", "Start (UTC), blank for the usual", TextInputStyle.SHORT)
-                    .setRequired(false).setPlaceholder("e.g. 2026-11-08 18:00").setMaxLength(16).build()));
-            rows.add(ActionRow.of(TextInput.create("end", "End (UTC), blank for the usual, or none", TextInputStyle.SHORT)
-                    .setRequired(false).setPlaceholder("e.g. 2026-11-09 18:00").setMaxLength(16).build()));
+        } else if (preview != null) {
+            rows.add(startInput(preview.start(), preview));
+            rows.add(endInput(preview.end(), preview));
         }
         rows.add(ActionRow.of(TextInput.create("notes", "Notes for leaders (optional)", TextInputStyle.PARAGRAPH)
                 .setRequired(false).setMaxLength(500).build()));
         return Modal.create(CustomId.of("req", "details"), "Contract details").addComponents(rows).build();
     }
 
-    private Modal timesModal(Draft d) {
-        return Modal.create(CustomId.of("req", "timesubmit"), "Change times")
-                .addComponents(
-                        ActionRow.of(TextInput.create("start", "Start (UTC), blank for now", TextInputStyle.SHORT)
-                                .setRequired(false).setPlaceholder("e.g. 2026-11-08 18:00").setMaxLength(16)
-                                .setValue(d.start == null || !d.start.isAfter(Instant.now()) ? null
-                                        : INPUT.format(d.start.atOffset(ZoneOffset.UTC))).build()),
-                        ActionRow.of(TextInput.create("end", "End (UTC), blank for no end", TextInputStyle.SHORT)
-                                .setRequired(false).setPlaceholder("e.g. 2026-11-09 18:00").setMaxLength(16)
-                                .setValue(d.end == null ? null : INPUT.format(d.end.atOffset(ZoneOffset.UTC))).build()))
+    /** The times box, filled in with {@code start}/{@code end}; labels say what the default is. */
+    private Modal timesModal(Instant start, Instant end, Scenarios.Defaults preview, String then) {
+        return Modal.create(CustomId.of("req", "timesubmit", then), "Contract times")
+                .addComponents(startInput(start, preview), endInput(end, preview))
                 .build();
+    }
+
+    private static ActionRow startInput(Instant start, Scenarios.Defaults preview) {
+        return ActionRow.of(TextInput.create("start", "Start (UTC) · default: " + preview.startNote(), TextInputStyle.SHORT)
+                .setRequired(false).setPlaceholder("e.g. 2026-11-08 18:00, or now").setMaxLength(16)
+                .setValue(start == null || !start.isAfter(Instant.now()) ? "now"
+                        : INPUT.format(start.atOffset(ZoneOffset.UTC))).build());
+    }
+
+    private static ActionRow endInput(Instant end, Scenarios.Defaults preview) {
+        return ActionRow.of(TextInput.create("end", "End (UTC) · default: " + preview.endNote(), TextInputStyle.SHORT)
+                .setRequired(false).setPlaceholder("e.g. 2026-11-09 18:00, or blank for no end").setMaxLength(16)
+                .setValue(end == null ? null : INPUT.format(end.atOffset(ZoneOffset.UTC))).build());
     }
 
     private Modal hitsModal(Draft d) {
@@ -502,7 +523,10 @@ public class RequestHandler implements InteractionHandler {
                 rows.add(ActionRow.of(menu.build()));
             }
         }
-        Button quote = Button.primary(CustomId.of("req", "quote"), "Get quote").withEmoji(Emoji.fromUnicode("➡️"));
+        boolean timesNext = d.mode == Mode.DURATION && d.forTarget.kind == Kind.FACTION && !d.timesGiven;
+        Button quote = timesNext
+                ? Button.primary(CustomId.of("req", "timesfirst"), "Next: times").withEmoji(Emoji.fromUnicode("🕒"))
+                : Button.primary(CustomId.of("req", "quote"), "Get quote").withEmoji(Emoji.fromUnicode("➡️"));
         rows.add(ActionRow.of(
                 Button.secondary(CustomId.of("req", "back1"), "Back").withEmoji(Emoji.fromUnicode("⬅️")),
                 (d.allMembers ? Button.success(CustomId.of("req", "all"), "All members")
@@ -743,28 +767,19 @@ public class RequestHandler implements InteractionHandler {
         }
     }
 
-    /**
-     * Reads start and end. With {@code usualDefaults}, blank means "use the scenario's usual
-     * times" and "none" means no end; otherwise blank start is now and blank end is no end.
-     */
-    private static String readTimes(ModalInteractionEvent event, Draft d, boolean usualDefaults) {
+    /** Reads start and end: blank or "now" start means now; blank or "none" end means no end. */
+    private static String readTimes(ModalInteractionEvent event, Draft d) {
         String start = text(event, "start");
         String end = text(event, "end");
         try {
             d.startInput = start.isBlank() || "now".equalsIgnoreCase(start) ? null
                     : LocalDateTime.parse(start, INPUT).toInstant(ZoneOffset.UTC);
-            if (usualDefaults) {
-                d.endInputGiven = !end.isBlank();
-                d.endInput = end.isBlank() || "none".equalsIgnoreCase(end) ? null
-                        : LocalDateTime.parse(end, INPUT).toInstant(ZoneOffset.UTC);
-            } else {
-                d.endInputGiven = true;
-                d.endInput = end.isBlank() || "none".equalsIgnoreCase(end) ? null
-                        : LocalDateTime.parse(end, INPUT).toInstant(ZoneOffset.UTC);
-            }
+            d.endInput = end.isBlank() || "none".equalsIgnoreCase(end) ? null
+                    : LocalDateTime.parse(end, INPUT).toInstant(ZoneOffset.UTC);
         } catch (DateTimeParseException e) {
             return "Times should look like 2026-11-08 18:00 (UTC).";
         }
+        d.timesGiven = true;
         Instant effectiveStart = d.startInput == null ? Instant.now() : d.startInput;
         if (d.endInput != null && !d.endInput.isAfter(effectiveStart)) {
             return "The end has to be after the start.";
