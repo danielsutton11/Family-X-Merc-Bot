@@ -456,7 +456,7 @@ public class RequestHandler implements InteractionHandler {
         StringSelectMenu.Builder forT = StringSelectMenu.create(CustomId.of("req", "for")).setPlaceholder("Target…");
         for (ForTarget f : ForTarget.values()) {
             if (f.myFaction == d.factionRequest) {
-                forT.addOption("Target: " + f.label, f.name(), null, Emoji.fromUnicode("🎯"));
+                forT.addOption(f.label, f.name(), null, Emoji.fromUnicode("🎯"));
             }
         }
         if (d.forTarget != null) {
