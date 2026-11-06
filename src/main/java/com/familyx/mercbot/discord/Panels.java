@@ -92,7 +92,7 @@ public class Panels {
                 **2**  Enter the players, or pick faction members
                 **3**  Check the quote; conditions are pre-filled
                 **4**  Pay the invoice in Torn when it ends""" + GAP, false);
-        eb.setFooter("🔁 Repeat last contract fills everything in  ·  🎯 Merc me is billed at Gold");
+        eb.setFooter("🔁 Repeat previous contract fills everything in  ·  🎯 Merc me is billed at Gold");
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
                         Button.primary(CustomId.of("req", "start"), "Request a contract")
@@ -100,7 +100,7 @@ public class Panels {
                         Button.secondary(CustomId.of("req", "mercme"), "Merc me (Gold)")
                                 .withEmoji(Emoji.fromUnicode("🎯"))),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("req", "repeat"), "Repeat last contract")
+                        Button.secondary(CustomId.of("req", "repeat"), "Repeat previous contract")
                                 .withEmoji(Emoji.fromUnicode("🔁")),
                         Button.secondary(CustomId.of("help", "requests"), "Help")
                                 .withEmoji(Emoji.fromUnicode("❓")))));
