@@ -1,5 +1,7 @@
 package com.familyx.mercbot.discord.setup;
 
+import com.familyx.mercbot.discord.AutoDismiss;
+
 import com.familyx.mercbot.audit.AuditService;
 import com.familyx.mercbot.discord.Access;
 import com.familyx.mercbot.discord.InteractionHandler;
@@ -42,7 +44,8 @@ public class SetupHandler implements InteractionHandler {
     @Override
     public void command(SlashCommandInteractionEvent event) {
         if (event.getGuild() == null) {
-            event.reply("Run this in the Family X server.").setEphemeral(true).queue();
+            event.reply("Run this in the Family X server.").setEphemeral(true)
+                    .queue(hook -> AutoDismiss.after(hook, AutoDismiss.SHORT));
             return;
         }
         event.deferReply(true).queue();
@@ -58,7 +61,8 @@ public class SetupHandler implements InteractionHandler {
                     Give the bot's role these permissions in Server Settings → Roles, make sure it sits above the \
                     merc roles, then run `/merc-setup` again (anything already created is reused):
                     Manage Roles · Manage Channels · View Channels · Send Messages · Embed Links · \
-                    Read Message History · Manage Messages · Create Public Threads · Create Private Threads""").queue();
+                    Read Message History · Manage Messages · Create Public Threads · Create Private Threads""")
+                    .queue(done -> AutoDismiss.after(event.getHook(), AutoDismiss.READING));
             return;
         }
         String summary = SetupService.summarise(report);
@@ -67,6 +71,7 @@ public class SetupHandler implements InteractionHandler {
                         "problems", report.problems()),
                 "Ran /merc-setup (" + report.created().size() + " created, "
                         + report.repaired().size() + " repaired)");
-        event.getHook().editOriginal("**Merc setup finished.**\n" + summary).queue();
+        event.getHook().editOriginal("**Merc setup finished.**\n" + summary)
+                .queue(done -> AutoDismiss.after(event.getHook(), AutoDismiss.REPORT));
     }
 }

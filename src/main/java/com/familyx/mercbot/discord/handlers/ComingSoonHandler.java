@@ -1,5 +1,7 @@
 package com.familyx.mercbot.discord.handlers;
 
+import com.familyx.mercbot.discord.AutoDismiss;
+
 import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.InteractionHandler;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -26,6 +28,6 @@ public class ComingSoonHandler implements InteractionHandler {
     public void button(ButtonInteractionEvent event, CustomId id) {
         String what = PHASES.getOrDefault(id.sub(), "a later update");
         event.reply("This isn't switched on yet. It arrives with **" + what + "** (build phase " + id.sub() + ").")
-                .setEphemeral(true).queue();
+                .setEphemeral(true).queue(hook -> AutoDismiss.after(hook, AutoDismiss.SHORT));
     }
 }

@@ -1,5 +1,7 @@
 package com.familyx.mercbot.discord.handlers;
 
+import com.familyx.mercbot.discord.AutoDismiss;
+
 import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.InteractionHandler;
 import com.familyx.mercbot.discord.Panels;
@@ -23,6 +25,7 @@ public class HelpHandler implements InteractionHandler {
 
     @Override
     public void button(ButtonInteractionEvent event, CustomId id) {
-        event.replyEmbeds(panels.requestHelp()).setEphemeral(true).queue();
+        event.replyEmbeds(panels.requestHelp()).setEphemeral(true)
+                .queue(hook -> AutoDismiss.after(hook, AutoDismiss.READING));
     }
 }

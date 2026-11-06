@@ -30,6 +30,8 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -48,8 +50,6 @@ public class SetupService {
             EnumSet.of(Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY);
     private static final EnumSet<Permission> NO_POSTING =
             EnumSet.of(Permission.MESSAGE_SEND, Permission.CREATE_PUBLIC_THREADS, Permission.CREATE_PRIVATE_THREADS);
-    private static final EnumSet<Permission> CHAT =
-            EnumSet.of(Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY, Permission.MESSAGE_SEND);
     private static final EnumSet<Permission> BOT = EnumSet.of(Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY,
             Permission.MESSAGE_SEND, Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_MANAGE);
 
@@ -127,10 +127,8 @@ public class SetupService {
                 mercsReadOnly);
 
         // ---- leader channels
-        TextChannel leaderChannel = ensureChannel(guild, Layout.CH_LEADERS, "merc-leaders", leaderCat, report, List.of(
-                new Override(everyone, none(), EnumSet.of(Permission.VIEW_CHANNEL)),
-                new Override(leaders, CHAT, none()),
-                new Override(bot, BOT, none())));
+        TextChannel leaderChannel = ensureChannel(guild, Layout.CH_LEADERS, "merc-leaders", leaderCat, report,
+                leaderPanelOverrides(guild, everyone, leaders, bot));
         List<Override> leadersReadOnly = List.of(
                 new Override(everyone, none(), EnumSet.of(Permission.VIEW_CHANNEL)),
                 new Override(leaders, READ, NO_POSTING),
@@ -156,25 +154,44 @@ public class SetupService {
             ensureMessage(payouts, Layout.payoutsMessage(f.tornFactionId()), panels.payouts(f),
                     f.name() + " payouts", report);
         }
+        syncPayouts(guild); // drops access for any faction leader role that has since been replaced
         return report;
     }
 
     /**
-     * Re-applies #merc-payouts permissions and posts any missing faction payout embeds.
-     * Called after a family faction or its leader role changes.
+     * Re-applies the permissions that depend on faction leader roles (#merc-leaders and #merc-payouts)
+     * and posts any missing faction payout embeds. Called after a family faction or its leader role changes.
      */
     public void syncPayouts(Guild guild) {
         Role leaders = guild.getRoleById(props.mercManagerRoleId());
+        if (leaders == null) {
+            return;
+        }
+        layout.get(Layout.CH_LEADERS).map(id -> guild.getTextChannelById(id)).ifPresent(ch ->
+                applyOverridesExactly(ch, leaderPanelOverrides(guild, guild.getPublicRole(), leaders, guild.getSelfMember())));
         Optional<TextChannel> channel = layout.get(Layout.CH_PAYOUTS).map(id -> guild.getTextChannelById(id));
-        if (leaders == null || channel.isEmpty()) {
+        if (channel.isEmpty()) {
             return;
         }
         Report ignored = new Report();
-        applyOverrides(channel.get(), payoutOverrides(guild, guild.getPublicRole(), leaders, guild.getSelfMember()));
+        applyOverridesExactly(channel.get(), payoutOverrides(guild, guild.getPublicRole(), leaders, guild.getSelfMember()));
         for (FamilyFaction f : factions.findActive()) {
             ensureMessage(channel.get(), Layout.payoutsMessage(f.tornFactionId()), panels.payouts(f),
                     f.name() + " payouts", ignored);
         }
+    }
+
+    /**
+     * #merc-leaders: bot embeds only. Merc Managers and faction leaders can see it and use the panel,
+     * but nobody can post. Each button still checks who clicked, so Settings etc. stay Merc Manager only.
+     */
+    private List<Override> leaderPanelOverrides(Guild guild, Role everyone, Role leaders, IPermissionHolder bot) {
+        List<Override> list = new ArrayList<>(List.of(
+                new Override(everyone, none(), EnumSet.of(Permission.VIEW_CHANNEL)),
+                new Override(leaders, READ, NO_POSTING),
+                new Override(bot, BOT, none())));
+        list.addAll(factionLeaderReadOnly(guild, leaders));
+        return list;
     }
 
     private List<Override> payoutOverrides(Guild guild, Role everyone, Role leaders, IPermissionHolder bot) {
@@ -182,6 +199,13 @@ public class SetupService {
                 new Override(everyone, none(), EnumSet.of(Permission.VIEW_CHANNEL)),
                 new Override(leaders, READ, NO_POSTING),
                 new Override(bot, BOT, none())));
+        list.addAll(factionLeaderReadOnly(guild, leaders));
+        return list;
+    }
+
+    /** Read-only access for every family faction's leader role (skipping the Merc Manager role itself). */
+    private List<Override> factionLeaderReadOnly(Guild guild, Role leaders) {
+        List<Override> list = new ArrayList<>();
         for (FamilyFaction f : factions.findActive()) {
             if (f.leaderRoleId() != null) {
                 Role r = guild.getRoleById(f.leaderRoleId());
@@ -309,6 +333,27 @@ public class SetupService {
         }
         applyOverrides(channel, overrides);
         return channel;
+    }
+
+    /**
+     * Like {@link #applyOverrides} but also drops role overrides that aren't in the list, so a faction's
+     * old leader role loses access when it changes. Only used on channels whose access the bot owns.
+     */
+    private void applyOverridesExactly(TextChannel channel, List<Override> overrides) {
+        Set<Long> keep = new HashSet<>();
+        for (Override o : overrides) {
+            keep.add(o.holder().getIdLong());
+        }
+        TextChannelManager manager = channel.getManager();
+        for (var existing : channel.getRolePermissionOverrides()) {
+            if (!keep.contains(existing.getIdLong())) {
+                manager = manager.removePermissionOverride(existing.getIdLong());
+            }
+        }
+        for (Override o : overrides) {
+            manager = manager.putPermissionOverride(o.holder(), o.allow(), o.deny());
+        }
+        manager.complete();
     }
 
     private void applyOverrides(TextChannel channel, List<Override> overrides) {

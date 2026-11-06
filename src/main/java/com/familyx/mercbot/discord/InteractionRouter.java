@@ -78,7 +78,8 @@ public class InteractionRouter extends ListenerAdapter {
         }
         InteractionHandler handler = handlers.get(id.action());
         if (handler == null) {
-            event.reply("That button is out of date. Please use the latest panel.").setEphemeral(true).queue();
+            event.reply("That button is out of date. Please use the latest panel.").setEphemeral(true)
+                    .queue(hook -> AutoDismiss.after(hook, AutoDismiss.SHORT));
             return;
         }
         dispatch(event, handler, work.apply(handler, id));
@@ -86,7 +87,8 @@ public class InteractionRouter extends ListenerAdapter {
 
     private void dispatch(IReplyCallback event, InteractionHandler handler, Work work) {
         if (!access.allows(handler.access(), event.getMember())) {
-            event.reply("Sorry, only leaders can use this.").setEphemeral(true).queue();
+            event.reply("Sorry, only leaders can use this.").setEphemeral(true)
+                    .queue(hook -> AutoDismiss.after(hook, AutoDismiss.SHORT));
             return;
         }
         executor.submit(() -> {
@@ -96,9 +98,12 @@ public class InteractionRouter extends ListenerAdapter {
                 log.error("Interaction {} failed", handler.action(), e);
                 String msg = "Something went wrong. Leaders have been told in the logs; please try again.";
                 if (event.isAcknowledged()) {
-                    event.getHook().sendMessage(msg).setEphemeral(true).queue(null, ignored -> { });
+                    event.getHook().sendMessage(msg).setEphemeral(true).queue(
+                            sent -> AutoDismiss.followUp(event.getHook(), sent.getIdLong(), AutoDismiss.SHORT),
+                            ignored -> { });
                 } else {
-                    event.reply(msg).setEphemeral(true).queue(null, ignored -> { });
+                    event.reply(msg).setEphemeral(true).queue(
+                            hook -> AutoDismiss.after(hook, AutoDismiss.SHORT), ignored -> { });
                 }
             }
         });

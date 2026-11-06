@@ -183,7 +183,6 @@ public class Panels {
 
     public Panel leaderPanel() {
         int min = settings.minLeaderKeysPerFaction();
-        Map<Long, FactionKeyCount> counts = keys.leaderKeyCountsByFaction();
         List<FamilyFaction> family = factions.findActive();
 
         EmbedBuilder eb = new EmbedBuilder()
@@ -194,18 +193,9 @@ public class Panels {
                 .setFooter("Last updated");
 
         // ---- leader keys: one tile per faction
-        int short_ = 0;
         eb.addField("🔑  Leader keys", "-# Each faction needs " + min + " healthy keys to track attacks and payments.",
                 false);
-        for (FamilyFaction f : family) {
-            FactionKeyCount c = counts.getOrDefault(f.tornFactionId(), new FactionKeyCount(f.tornFactionId(), 0, 0, 0));
-            String dot = c.healthy() >= min ? "🟢" : c.healthy() > 0 ? "🟠" : "🔴";
-            if (c.healthy() < min) short_++;
-            String value = "**" + c.healthy() + " / " + min + "** keys"
-                    + (c.bsp() > 0 ? "\n-# " + c.bsp() + " with BSP" : "\n-# no BSP") + GAP;
-            eb.addField(dot + "  " + f.name(), value, true);
-        }
-        pad(eb, family.size());
+        int short_ = addKeyTiles(eb, family, min);
 
         // ---- tiers
         List<Tier> tierList = tiers.findActive();
@@ -277,6 +267,21 @@ public class Panels {
         if (t.requiresStricken()) return "Silver + Stricken";
         if (t.requiresMerits()) return "Merits + hosp perk";
         return "Any merc";
+    }
+
+    /** One tile per faction with its key count; returns how many factions are below the minimum. */
+    private int addKeyTiles(EmbedBuilder eb, List<FamilyFaction> family, int min) {
+        Map<Long, FactionKeyCount> counts = keys.leaderKeyCountsByFaction();
+        int belowMin = 0;
+        for (FamilyFaction f : family) {
+            FactionKeyCount c = counts.getOrDefault(f.tornFactionId(), new FactionKeyCount(f.tornFactionId(), 0, 0, 0));
+            String dot = c.healthy() >= min ? "🟢" : c.healthy() > 0 ? "🟠" : "🔴";
+            if (c.healthy() < min) belowMin++;
+            eb.addField(dot + "  " + f.name(), "**" + c.healthy() + " / " + min + "** keys"
+                    + (c.bsp() > 0 ? "\n-# " + c.bsp() + " with BSP" : "\n-# no BSP") + GAP, true);
+        }
+        pad(eb, family.size());
+        return belowMin;
     }
 
     /** Pads an inline-field grid to a multiple of three so the next section starts on its own line. */
