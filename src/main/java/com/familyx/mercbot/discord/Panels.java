@@ -95,12 +95,12 @@ public class Panels {
         eb.setFooter("🔁 Repeat last contract fills everything in  ·  🎯 Merc me is billed at Gold");
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
-                        Button.primary(CustomId.of("soon", "3", "request-a-contract"), "Request a contract")
+                        Button.primary(CustomId.of("req", "start"), "Request a contract")
                                 .withEmoji(Emoji.fromUnicode("⚔️")),
-                        Button.secondary(CustomId.of("soon", "3", "merc-me-gold"), "Merc me (Gold)")
+                        Button.secondary(CustomId.of("req", "mercme"), "Merc me (Gold)")
                                 .withEmoji(Emoji.fromUnicode("🎯"))),
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3", "repeat-last-contract"), "Repeat last contract")
+                        Button.secondary(CustomId.of("req", "repeat"), "Repeat last contract")
                                 .withEmoji(Emoji.fromUnicode("🔁")),
                         Button.secondary(CustomId.of("help", "requests"), "Help")
                                 .withEmoji(Emoji.fromUnicode("❓")))));

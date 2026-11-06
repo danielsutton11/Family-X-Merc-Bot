@@ -103,6 +103,14 @@ public class TierRepository {
                 .params(tierId, price, createdBy).update();
     }
 
+    /** The id of the tier's current price version (stored on contracts so later price changes don't affect them). */
+    public int currentPriceVersionId(int tierId) {
+        return jdbc.sql("""
+                        SELECT id FROM tier_price_version WHERE tier_id = ?
+                        ORDER BY effective_from DESC, id DESC LIMIT 1""")
+                .param(tierId).query(Integer.class).single();
+    }
+
     /** A past price, newest first. */
     public record PriceVersion(long price, java.time.Instant from, Long createdBy) { }
 

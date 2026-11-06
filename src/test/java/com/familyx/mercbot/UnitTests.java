@@ -5,12 +5,21 @@ import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.Money;
 import com.familyx.mercbot.keys.KeyCipher;
 import com.familyx.mercbot.merc.Eligibility;
+import com.familyx.mercbot.request.Choices;
+import com.familyx.mercbot.request.Pricing;
+import com.familyx.mercbot.request.Rules;
+import com.familyx.mercbot.request.Scenarios;
 import com.familyx.mercbot.tier.TierRepository.Tier;
 import org.junit.jupiter.api.Test;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,5 +128,97 @@ class UnitTests {
         assertEquals(true, Eligibility.strickenWouldUnlock(tiers, silver));
         assertEquals(false, Eligibility.strickenWouldUnlock(tiers, gold));
         assertEquals(false, Eligibility.strickenWouldUnlock(tiers, bronzeOnly));
+    }
+
+    @Test
+    void pricingMatchesScopeDocExample() {
+        // 7.5: a Gold hit at $2.9m with a 10% discount bills $2,610,000.
+        assertEquals(2_610_000, Pricing.discounted(2_900_000, new BigDecimal("10")));
+        assertEquals(2_900_000, Pricing.discounted(2_900_000, BigDecimal.ZERO));
+        assertEquals(BigDecimal.ZERO, Pricing.applicableDiscount(false, new BigDecimal("10")));
+        assertEquals(new BigDecimal("10"), Pricing.applicableDiscount(true, new BigDecimal("10")));
+        assertEquals(8_700_000, Pricing.total(2_900_000, 3, 1));
+    }
+
+    @Test
+    void rulesFollowScopeDocTable() {
+        Set<Long> family = Set.of(9357L, 1L);
+        Set<Long> protectedF = Set.of(777L);
+        // outsiders can't target the family
+        assertEquals(true, Rules.check(Choices.ForTarget.PERSONAL_FACTION, false, 555L, family, protectedF,
+                Map.of(9357L, "Capacity X")).isPresent());
+        // family Personal can't target family members
+        assertEquals(true, Rules.check(Choices.ForTarget.PERSONAL_PLAYERS, false, 1L, family, protectedF,
+                Map.of(9357L, "Capacity X")).isPresent());
+        // family My faction can target another family faction
+        assertEquals(Optional.empty(), Rules.check(Choices.ForTarget.MY_FACTION_OTHER, false, 1L, family, protectedF,
+                Map.of(9357L, "Capacity X")));
+        // protected factions are refused
+        assertEquals(Optional.of("Shield is a protected faction."), Rules.check(Choices.ForTarget.MY_FACTION_OTHER,
+                false, 1L, family, protectedF, Map.of(777L, "Shield")));
+        // My faction needs a faction
+        assertEquals(true, Rules.check(Choices.ForTarget.MY_FACTION_PLAYERS, false, null, family, protectedF,
+                Map.of()).isPresent());
+        // Merc me is always allowed
+        assertEquals(Optional.empty(), Rules.check(null, true, null, family, protectedF, Map.of()));
+        // anyone can target an outside faction
+        assertEquals(Optional.empty(), Rules.check(Choices.ForTarget.PERSONAL_FACTION, false, 555L, family, protectedF,
+                Map.of(888L, "Other")));
+    }
+
+    @Test
+    void scenariosPickTheRightDefaults() {
+        Instant now = Instant.parse("2026-11-06T20:00:00Z");
+        Scenarios.War scheduled = new Scenarios.War(42, "Enemy", now.plus(Duration.ofHours(10)), null);
+        Scenarios.War active = new Scenarios.War(42, "Enemy", now.minus(Duration.ofHours(1)), null);
+        var hosp = Choices.Attack.HOSPITALIZE;
+
+        // A: own faction at war; starts at the war, 24h, idle 30+, don't hit revivable
+        var a = Scenarios.defaults(new Scenarios.Situation(Choices.ForTarget.MY_FACTION_MINE, false, 1L, scheduled,
+                null, hosp, null), now);
+        assertEquals(Scenarios.Scenario.A, a.scenario());
+        assertEquals(Choices.Status.AWAY, a.conditions().status());
+        assertEquals(30, a.conditions().awayMinutes());
+        assertEquals(false, a.conditions().allowRevivable());
+        assertEquals(scheduled.start(), a.start());
+        assertEquals(scheduled.start().plus(Duration.ofHours(24)), a.end());
+
+        // D: own faction, no war
+        assertEquals(Scenarios.Scenario.D, Scenarios.pick(new Scenarios.Situation(Choices.ForTarget.MY_FACTION_MINE,
+                false, 1L, null, null, hosp, null), now));
+
+        // B: the enemy, war scheduled: online, now until war start
+        var b = Scenarios.defaults(new Scenarios.Situation(Choices.ForTarget.MY_FACTION_OTHER, false, 42L, scheduled,
+                null, Choices.Attack.MUG, null), now);
+        assertEquals(Scenarios.Scenario.B, b.scenario());
+        assertEquals(Choices.Status.ONLINE, b.conditions().status());
+        assertEquals(scheduled.start(), b.end());
+        assertEquals(false, b.conditions().allowEarlyDischarge());
+
+        // active war against the enemy: no defaults
+        var w = Scenarios.defaults(new Scenarios.Situation(Choices.ForTarget.MY_FACTION_OTHER, false, 42L, active,
+                null, hosp, null), now);
+        assertEquals(Scenarios.Scenario.WAR_ACTIVE, w.scenario());
+        assertNull(w.conditions());
+
+        // C: personal against players
+        assertEquals(Scenarios.Scenario.C, Scenarios.pick(new Scenarios.Situation(Choices.ForTarget.PERSONAL_PLAYERS,
+                false, null, null, null, hosp, null), now));
+        // E: another faction, no war
+        var e = Scenarios.defaults(new Scenarios.Situation(Choices.ForTarget.PERSONAL_FACTION, false, 99L, null, null,
+                hosp, null), now);
+        assertEquals(Scenarios.Scenario.E, e.scenario());
+        assertNull(e.end());
+        assertEquals(false, e.conditions().allowEarlyDischarge());
+        // G: another faction at war, offensive: online until their war start
+        Scenarios.War theirs = new Scenarios.War(5, "X", now.plus(Duration.ofHours(3)), null);
+        var g = Scenarios.defaults(new Scenarios.Situation(Choices.ForTarget.MY_FACTION_OTHER, false, 99L, null, theirs,
+                hosp, Choices.Posture.OFFENSIVE), now);
+        assertEquals(Scenarios.Scenario.G, g.scenario());
+        assertEquals(Choices.Status.ONLINE, g.conditions().status());
+        assertEquals(theirs.start(), g.end());
+        // F: merc me
+        assertEquals(Scenarios.Scenario.F, Scenarios.pick(new Scenarios.Situation(null, true, null, null, null, hosp,
+                null), now));
     }
 }
