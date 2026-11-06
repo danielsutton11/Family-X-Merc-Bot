@@ -113,7 +113,7 @@ public class Panels {
             eb.addField(tierIcon(t) + "  " + t.name() + " · " + Money.full(t.pricePerHit()) + " per hit",
                     tierWho(t), false);
         }
-        eb.addField("🗡️  Attack types", "**Hospitalize** puts targets in hospital. **Mug** steals from them. "
+        eb.addField("🗡️  Attack types", "**Hospitalize** puts targets in hospital. **Mug** keeps war targets in rotation. "
                 + "One type per contract.", false);
         eb.addField("⏱️  Modes", "**Hit count**: a set number of hits per target.\n"
                 + "**Duration**: hit whenever possible between a start and end time.", false);

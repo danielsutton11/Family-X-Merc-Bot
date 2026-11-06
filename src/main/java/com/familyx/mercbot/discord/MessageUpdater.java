@@ -31,12 +31,14 @@ public class MessageUpdater {
     public record Edit(long channelId, long messageId, MessageEditData data) { }
 
     private final JDA jda;
+    private final PanelHashes hashes;
     private final Map<String, Supplier<Optional<Edit>>> pending = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().factory());
 
-    public MessageUpdater(JDA jda) {
+    public MessageUpdater(JDA jda, PanelHashes hashes) {
         this.jda = jda;
+        this.hashes = hashes;
     }
 
     /**
@@ -56,13 +58,17 @@ public class MessageUpdater {
         }
         try {
             supplier.get().ifPresent(edit -> {
+                if (!hashes.changed(edit.messageId(), edit.data())) {
+                    return; // nothing new to show
+                }
                 MessageChannel channel = jda.getChannelById(MessageChannel.class, edit.channelId());
                 if (channel == null) {
                     log.warn("Channel {} for {} not found", edit.channelId(), key);
                     return;
                 }
                 channel.editMessageById(edit.messageId(), edit.data())
-                        .queue(null, e -> log.warn("Edit of {} failed: {}", key, e.getMessage()));
+                        .queue(done -> hashes.remember(edit.messageId(), edit.data()),
+                                e -> log.warn("Edit of {} failed: {}", key, e.getMessage()));
             });
         } catch (Exception e) {
             log.error("Building update for {} failed", key, e);

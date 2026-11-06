@@ -412,7 +412,7 @@ public class RequestHandler implements InteractionHandler {
         }
         StringSelectMenu.Builder attack = StringSelectMenu.create(CustomId.of("req", "attack")).setPlaceholder("Attack type…")
                 .addOption("Attack: Hospitalize", Attack.HOSPITALIZE.name(), "Put targets in hospital", Emoji.fromUnicode("🏥"))
-                .addOption("Attack: Mug", Attack.MUG.name(), "Steal from targets", Emoji.fromUnicode("💸"));
+                .addOption("Attack: Mug", Attack.MUG.name(), "Keep war targets in rotation", Emoji.fromUnicode("💸"));
         if (d.attack != null) {
             attack.setDefaultValues(d.attack.name());
         }

@@ -4,6 +4,7 @@ import com.familyx.mercbot.discord.Fancy;
 
 import com.familyx.mercbot.config.BotProperties;
 import com.familyx.mercbot.discord.Layout;
+import com.familyx.mercbot.discord.PanelHashes;
 import com.familyx.mercbot.discord.Panels;
 import com.familyx.mercbot.discord.Panels.Panel;
 import com.familyx.mercbot.faction.FamilyFactionRepository;
@@ -21,6 +22,7 @@ import net.dv8tion.jda.api.managers.channel.concrete.TextChannelManager;
 import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageEditBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageEditData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -68,9 +70,11 @@ public class SetupService {
     private final FamilyFactionRepository factions;
     private final Panels panels;
     private final BotProperties props;
+    private final PanelHashes hashes;
 
     public SetupService(Layout layout, TierRepository tiers, FamilyFactionRepository factions, Panels panels,
-                        BotProperties props) {
+                        BotProperties props, PanelHashes hashes) {
+        this.hashes = hashes;
         this.layout = layout;
         this.tiers = tiers;
         this.factions = factions;
@@ -432,10 +436,16 @@ public class SetupService {
 
     /** Edits the stored message if it still exists, otherwise posts a new one. Returns its ID. */
     private Long ensureMessage(TextChannel channel, Optional<Long> storedId, Panel panel, String label, Report report) {
+        MessageEditData data = new MessageEditBuilder().setEmbeds(panel.embed()).setComponents(panel.rows()).build();
         if (storedId.isPresent()) {
             try {
-                channel.editMessageById(storedId.get(), new MessageEditBuilder()
-                        .setEmbeds(panel.embed()).setComponents(panel.rows()).build()).complete();
+                if (hashes.changed(storedId.get(), data)) {
+                    channel.editMessageById(storedId.get(), data).complete();
+                    hashes.remember(storedId.get(), data);
+                } else {
+                    // Unchanged: only check it still exists (a read, which doesn't count towards the edit limit).
+                    channel.retrieveMessageById(storedId.get()).complete();
+                }
                 return storedId.get();
             } catch (ErrorResponseException e) {
                 if (e.getErrorResponse() != ErrorResponse.UNKNOWN_MESSAGE) {
@@ -446,6 +456,7 @@ public class SetupService {
         }
         long id = channel.sendMessage(new MessageCreateBuilder()
                 .setEmbeds(panel.embed()).setComponents(panel.rows()).build()).complete().getIdLong();
+        hashes.remember(id, data);
         report.created().add(label);
         return id;
     }
