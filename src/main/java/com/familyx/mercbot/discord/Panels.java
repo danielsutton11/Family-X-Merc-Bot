@@ -248,9 +248,9 @@ public class Panels {
 
     /** On, switched off by a Merc Manager, or hidden because nobody holds it. */
     public static String tierStatus(Tier t) {
-        if (!t.enabled()) return "⏸️ off";
-        if (t.autoHidden()) return "💤 hidden (empty)";
-        return "✅ on";
+        if (!t.enabled()) return "Off ⏸️";
+        if (t.autoHidden()) return "Hidden (empty) 💤";
+        return "On ✅";
     }
 
     public static String tierIcon(Tier t) {

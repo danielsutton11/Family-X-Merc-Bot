@@ -148,7 +148,7 @@ public class KeysHandler implements InteractionHandler {
         }
         List<StoredKey> mine = repo.findByOwner(user, Kind.LEADER);
         String yours = mine.isEmpty() ? "You haven't added a key." : mine.stream()
-                .map(k -> (k.healthy() ? "✅ working" : "❌ " + k.unhealthyReason()) + (k.bspActive() ? " · BSP" : ""))
+                .map(k -> (k.healthy() ? "Working ✅" : "Not working ❌ · " + k.unhealthyReason()) + (k.bspActive() ? " · BSP" : ""))
                 .reduce((a, b) -> a + "\n" + b).orElse("");
         eb.addField("👤  Your keys", yours + Panels.GAP, false);
         eb.addField("🔒  How your key is used", KEY_USE_STATEMENT, false);

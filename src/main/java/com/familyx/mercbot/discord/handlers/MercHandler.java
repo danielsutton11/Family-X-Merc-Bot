@@ -290,10 +290,10 @@ public class MercHandler implements InteractionHandler {
                         + (strickenUnlocks ? "Stricken unlocks a higher tier"
                         : top.isPresent() ? "highest you qualify for" : "no tier you've chosen fits")
                         + Panels.GAP, true);
-        eb.addField("🔑  Key", (service.keyWorking(m) ? "✅ working" : "❌ not working") + "\n-# checked daily"
+        eb.addField("🔑  Key", (service.keyWorking(m) ? "Working ✅" : "Not working ❌") + "\n-# checked daily"
                 + Panels.GAP, true);
-        eb.addField("🎖️  Merits", (m.meritsOk() ? "10/10 ✅" : "Not 10/10") + "\n-# checked daily" + Panels.GAP, true);
-        eb.addField("🏥  Faction perk", (perk ? "Hospitalization X ✅" : "No Hospitalization X") + "\n-# checked daily"
+        eb.addField("🎖️  Merits", (m.meritsOk() ? "10/10 ✅" : "Not 10/10 ❌") + "\n-# checked daily" + Panels.GAP, true);
+        eb.addField("🏥  Faction perk", (perk ? "Hospitalization X ✅" : "No Hospitalization X ❌") + "\n-# checked daily"
                 + Panels.GAP, true);
         eb.addField("⚡  Stricken", (m.strickenActive() ? "On" : "Off") + "\n-# "
                 + (!m.meritsOk() ? "needs 10/10 merits" : strickenUnlocks ? "turn on for a higher tier"
@@ -338,6 +338,7 @@ public class MercHandler implements InteractionHandler {
         StringSelectMenu dms = StringSelectMenu.create(CustomId.of("merc", "dms"))
                 .addOption("Hit DMs: Every hit", DmPref.EVERY_HIT.name())
                 .addOption("Hit DMs: Hourly summary", DmPref.HOURLY.name())
+                .addOption("Hit DMs: Off", DmPref.OFF.name())
                 .setDefaultValues(m.dmPref().name()).build();
 
         List<Button> buttons = new ArrayList<>();
@@ -401,6 +402,7 @@ public class MercHandler implements InteractionHandler {
         return switch (p) {
             case EVERY_HIT -> "Every hit";
             case HOURLY -> "Hourly summary";
+            case OFF -> "Off";
         };
     }
 }

@@ -21,7 +21,7 @@ public class MercRepository {
 
     public enum PingPref { ALL, NEW_ONLY, OFF }
 
-    public enum DmPref { EVERY_HIT, HOURLY }
+    public enum DmPref { EVERY_HIT, HOURLY, OFF }
 
     public record Merc(long tornId, long discordId, String name, Long factionId, boolean meritsOk,
                        boolean strickenOptIn, boolean available, Instant availableUntil, PingPref pingPref,

@@ -169,7 +169,7 @@ public class FactionsHandler implements InteractionHandler {
         for (FamilyFaction f : active) {
             boolean hasRole = f.leaderRoleId() != null;
             eb.addField((hasRole ? "🟢  " : "🟠  ") + f.name(),
-                    (hasRole ? "<@&" + f.leaderRoleId() + ">" : "No leader role")
+                    (hasRole ? "<@&" + f.leaderRoleId() + ">" : "No leader role ⚠️")
                             + "\n-# ID " + f.tornFactionId() + Panels.GAP, true);
         }
         for (int i = active.size() % 3; i != 0 && i < 3; i++) {
