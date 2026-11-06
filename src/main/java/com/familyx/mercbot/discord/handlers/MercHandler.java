@@ -96,6 +96,12 @@ public class MercHandler implements InteractionHandler {
                     return profile(m, "Stricken needs 10/10 merits first.");
                 }
                 mercs.setStricken(m.tornId(), on);
+                if (on) {
+                    // Stricken and Gold go together: turning Stricken on also ticks the Stricken tiers.
+                    List<Integer> strickenTiers = tiers.findActive().stream().filter(Tier::requiresStricken)
+                            .map(Tier::id).toList();
+                    mercs.setOptIns(m.tornId(), Set.copyOf(strickenTiers), strickenTiers);
+                }
                 Merc updated = mercs.findByTorn(m.tornId()).orElseThrow();
                 RoleSync.Result r = roles.sync(updated);
                 availability.evaluate();
@@ -161,11 +167,22 @@ public class MercHandler implements InteractionHandler {
         if ("tiers".equals(id.sub())) {
             withMercSlow(user, event, m -> {
                 Set<Integer> wanted = event.getValues().stream().map(Integer::parseInt).collect(Collectors.toSet());
-                List<Integer> all = tiers.findActive().stream().map(Tier::id).toList();
-                mercs.setOptIns(m.tornId(), wanted, all);
-                RoleSync.Result r = roles.sync(m);
+                List<Tier> active = tiers.findActive();
+                // Only the tiers that were in the menu change. Stricken tiers (Gold) are only listed
+                // while Stricken is on, and unticking one turns Stricken off instead.
+                List<Integer> plain = active.stream().filter(t -> !t.requiresStricken()).map(Tier::id).toList();
+                mercs.setOptIns(m.tornId(), wanted, plain);
+                String extra = "";
+                boolean strickenDropped = m.strickenActive() && active.stream()
+                        .anyMatch(t -> t.requiresStricken() && !wanted.contains(t.id()));
+                if (strickenDropped) {
+                    mercs.setStricken(m.tornId(), false);
+                    extra = " ⚡ Stricken turned off.";
+                }
+                Merc updated = reload(m);
+                RoleSync.Result r = roles.sync(updated);
                 availability.evaluate();
-                return profile(reload(m), "🏷️ Tier choices saved." + rolesNote(r));
+                return profile(updated, "🏷️ Tier choices saved." + extra + rolesNote(r));
             });
             return;
         }
@@ -299,10 +316,12 @@ public class MercHandler implements InteractionHandler {
                     "Availability: off until " + TIME.format(m.availableUntil()) + " UTC").build();
         }
 
+        // Stricken tiers (Gold) only appear here while Stricken is on (Stricken on = Gold on).
+        List<Tier> menuTiers = active.stream().filter(t -> !t.requiresStricken() || m.strickenActive()).toList();
         StringSelectMenu.Builder tierMenu = StringSelectMenu.create(CustomId.of("merc", "tiers"))
-                .setPlaceholder("Tiers I want: none").setRequiredRange(0, Math.max(1, active.size()));
+                .setPlaceholder("Tiers I want: none").setRequiredRange(0, Math.max(1, menuTiers.size()));
         Set<String> wanted = new HashSet<>();
-        for (Tier t : active) {
+        for (Tier t : menuTiers) {
             tierMenu.addOption("Tier: " + t.name(), Integer.toString(t.id()), Panels.tierWhoShort(t),
                     Emoji.fromUnicode(Panels.tierIcon(t)));
             if (!facts.optedOut().contains(t.id())) {
