@@ -65,7 +65,12 @@ public final class ContractSummary {
                     .append("% applied. ");
         }
         price.append(q.total() != null ? "Invoiced when the contract ends." : "Billed per hit as they land.");
-        if (q.silverPerHit() != null) {
+        if (c.mercMe()) {
+            // Same warning as the Merc me quote.
+            if (d.requesterRevivable) {
+                price.append("\n-# ⚠️ You're revivable. If someone revives you, that hit is still billed.");
+            }
+        } else if (q.silverPerHit() != null) {
             price.append(" Revivable targets are billed at Silver (").append(Money.shortForm(q.silverPerHit())).append(").");
         }
         eb.addField("💰  Price", price.toString(), false);
