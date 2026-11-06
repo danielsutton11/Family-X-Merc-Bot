@@ -2,7 +2,7 @@ package com.familyx.mercbot.discord;
 
 /**
  * The style the server uses for channel and category names: small caps, "・" for spaces and
- * hyphens, and "┃" in front of channel names (e.g. "┃ᴍᴇʀᴄ・ꜱɪɢɴᴜᴘ", category "ᴍᴇʀᴄ・ꜱᴇʀᴠɪᴄᴇ").
+ * hyphens, and "┃" in front of channel names (e.g. "┃ᴍᴇʀᴄ・ꜱɪɢɴᴜᴘ", categories "⋄ Family X Merc Service").
  * Q and X have no small-caps form, so they stay as plain lowercase letters.
  */
 public final class Fancy {
@@ -18,9 +18,9 @@ public final class Fancy {
         return "┃" + spaced(name);
     }
 
-    /** "Merc Service" becomes "ᴍᴇʀᴄ・ꜱᴇʀᴠɪᴄᴇ". */
+    /** Categories keep normal letters with a diamond in front: "⋄ Family X Merc Service". */
     public static String category(String name) {
-        return spaced(name);
+        return "⋄ " + name.trim();
     }
 
     private static String spaced(String name) {

@@ -95,8 +95,8 @@ public class SetupService {
         ensureRole(guild, Layout.ROLE_STRICKEN, "Stricken", new Color(0xD64545), report);
 
         // ---- categories
-        Category service = ensureCategory(guild, Layout.CAT_SERVICE, "Merc Service", report);
-        Category leaderCat = ensureCategory(guild, Layout.CAT_LEADERS, "Merc Leaders", report);
+        Category service = ensureCategory(guild, Layout.CAT_SERVICE, "Family X Merc Service", report);
+        Category leaderCat = ensureCategory(guild, Layout.CAT_LEADERS, "Family X Merc Managers", report);
 
         // ---- merc-facing channels
         TextChannel signup = ensureChannel(guild, Layout.CH_SIGNUP, "merc-signup", service, report, List.of(
