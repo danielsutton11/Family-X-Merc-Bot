@@ -97,14 +97,14 @@ public class ControlPanelHandler implements InteractionHandler {
             case "pause" -> {
                 event.deferEdit().queue();
                 if (contracts.setStatus(c.id(), List.of("ACTIVE"), "PAUSED")) {
-                    feed.post("⏸️ **" + c.ref() + "** paused by the requester");
+                    feed.contract(c, "⏸️", "paused by the requester", "off the boards until resumed");
                     changed(c.id());
                 }
             }
             case "resume" -> {
                 event.deferEdit().queue();
                 if (contracts.setStatus(c.id(), List.of("PAUSED"), "ACTIVE")) {
-                    feed.post("▶️ **" + c.ref() + "** resumed by the requester");
+                    feed.contract(c, "▶️", "resumed by the requester", "back on the boards");
                     changed(c.id());
                 }
             }
@@ -133,7 +133,7 @@ public class ControlPanelHandler implements InteractionHandler {
                     .build()).queue();
             case "endyes" -> {
                 if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "ENDED")) {
-                    feed.post("⏹️ **" + c.ref() + "** ended early by the requester");
+                    feed.contract(c, "⏹️", "ended early by the requester", feed.hitsLanded(c));
                     changed(c.id());
                     closing(event, "⏹️ **" + c.ref() + "** has ended. No more hits will count.");
                 } else {
@@ -150,7 +150,7 @@ public class ControlPanelHandler implements InteractionHandler {
                     if (wasPending) {
                         removeApprovalCard(c);
                     } else {
-                        feed.post("✖️ **" + c.ref() + "** cancelled by the requester");
+                        feed.contract(c, "✖️", "cancelled by the requester", "nothing billed");
                     }
                     changed(c.id());
                     closing(event, "✖️ **" + c.ref() + "** is cancelled. Nothing is billed.");

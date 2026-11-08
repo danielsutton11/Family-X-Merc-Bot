@@ -63,14 +63,14 @@ public class ContractClock {
         }
         for (Contract c : contracts.pastEnd()) {
             if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "COMPLETED")) {
-                feed.post("✅ **" + c.ref() + "** completed");
+                feed.contract(c, "✅", "completed", "end time reached · " + feed.hitsLanded(c));
                 changed = true;
             }
         }
         for (Contract c : contracts.hitsComplete()) {
             if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "COMPLETED")) {
                 int[] p = contracts.hitProgress(c.id());
-                feed.post("✅ **" + c.ref() + "** completed · " + p[0] + " of " + p[1] + " hits");
+                feed.contract(c, "✅", "completed", "all " + p[1] + " hits done");
                 changed = true;
             }
         }
@@ -86,11 +86,10 @@ public class ContractClock {
         Tier tier = tiers.find(c.tierId()).orElse(null);
         String tierName = tier == null ? "Tier" : tier.name();
         int n = contracts.targetCount(c.id());
-        String target = c.mercMe() ? "Merc me"
-                : c.factionTarget() ? c.targetFactionName() : n == 1 ? contracts.firstTargetName(c.id()).orElse("1 player")
-                : n + " players";
-        feed.post("🟢 **" + c.ref() + "** started · " + tierName + " · " + target
-                + (c.factionTarget() ? " (" + n + " targets)" : ""));
+        String target = feed.targetName(c, n);
+        feed.contract(c, "🟢", "started", c.mode() == Mode.HITS
+                ? c.hitsPerTarget() + (c.hitsPerTarget() == 1 ? " hit" : " hits") + (n == 1 ? "" : " each")
+                : c.endsAt() == null ? "no end" : "until " + SHOW.format(c.endsAt()) + " UTC");
         if (tier != null) {
             String details = n + (n == 1 ? " target" : " targets") + " · " + c.attack().label
                     + (c.mercMe() ? "" : " · " + c.conditions().statusLabel())
