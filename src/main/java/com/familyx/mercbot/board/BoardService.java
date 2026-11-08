@@ -113,8 +113,8 @@ public class BoardService {
                 if (shown != t.onBoard()) {
                     targets.setOnBoard(t.id(), shown);
                 }
-                if (v == Verdict.SHOW && before != null && before != Verdict.SHOW && before != Verdict.UNKNOWN
-                        && before != Verdict.PAUSED) {
+                if (v == Verdict.SHOW && before != null && before != Verdict.SHOW && before != Verdict.UNKNOWN) {
+                    // Includes targets returning because their contract was resumed.
                     back.add(t);
                     fromHospital.put(t.id(), before == Verdict.NOT_YET);
                 }
