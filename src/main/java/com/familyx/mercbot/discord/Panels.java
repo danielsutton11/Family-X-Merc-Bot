@@ -206,7 +206,7 @@ public class Panels {
                                 .withEmoji(Emoji.fromUnicode("📋")),
                         Button.secondary(CustomId.of("soon", "4", "invoices-payouts"), "Invoices & payouts")
                                 .withEmoji(Emoji.fromUnicode("💰")),
-                        Button.secondary(CustomId.of("soon", "5", "mercs"), "Mercs")
+                        Button.secondary(CustomId.of("mercs", "view"), "Mercs")
                                 .withEmoji(Emoji.fromUnicode("🗡️")),
                         Button.secondary(CustomId.of("soon", "5", "requesters"), "Requesters")
                                 .withEmoji(Emoji.fromUnicode("🧾"))),

@@ -179,6 +179,22 @@ public class MercService {
         }
     }
 
+    /** A Merc Manager removes a merc from the service (leader panel → Mercs). */
+    public void remove(Merc m, long leaderDiscordId) {
+        mercs.markLeft(m.tornId());
+        keys.deleteByOwner(m.discordId(), Kind.MERC);
+        pool.invalidate();
+        roles.sync(mercs.findByTorn(m.tornId()).orElseThrow());
+        availability.evaluate();
+        audit.log(leaderDiscordId, "MERC_REMOVED", "merc:" + m.tornId(), null, null,
+                "Removed **" + m.name() + "** [" + m.tornId() + "] from the merc service");
+        dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.WARN).setAuthor("FAMILY X MERCS")
+                .setTitle("🚪  You've been removed from the merc service")
+                .setDescription("A Merc Manager removed you, so your merc roles and stored key are gone. If you think "
+                        + "this was a mistake, ask a Merc Manager. You can join again from the merc sign-up channel.")
+                .build());
+    }
+
     public void leave(Merc m) {
         mercs.markLeft(m.tornId());
         keys.deleteByOwner(m.discordId(), Kind.MERC);
