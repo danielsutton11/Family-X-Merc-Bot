@@ -196,7 +196,7 @@ public class BoardService {
         if (t.hasOverride()) {
             hints.add("requester override, 1 hit");
         } else if (gold && !revivableOnGold) {
-            hints.add("Needs Stricken for Gold");
+            hints.add("⚡ **Stricken Required**");
         }
         if (t.hitsRequired() != null && t.hitsRequired() > 1) {
             hints.add((t.hitsRequired() - t.hitsDone()) + " hits left");
