@@ -1,5 +1,7 @@
 package com.familyx.mercbot;
 
+import com.familyx.mercbot.board.BoardRules;
+import com.familyx.mercbot.board.TargetRepository.BoardTarget;
 import com.familyx.mercbot.config.BotProperties;
 import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.Money;
@@ -220,5 +222,29 @@ class UnitTests {
         // F: merc me
         assertEquals(Scenarios.Scenario.F, Scenarios.pick(new Scenarios.Situation(null, true, null, null, null, hosp,
                 null), now));
+    }
+
+    private static BoardTarget target(String state, boolean revivable, String lastActionStatus, int minutesAgo,
+                                      com.familyx.mercbot.request.Conditions c, Instant now) {
+        return new BoardTarget(1, 1, "C-0001", "ACTIVE", 1, 0, now, true, "Foes", 10, Choices.Attack.HOSPITALIZE, c,
+                null, null, 42, "Target", 50, 7L, state, null, null, revivable, false,
+                now.minus(Duration.ofMinutes(minutesAgo)), lastActionStatus, null, false, null, 0, false, false, now);
+    }
+
+    @Test
+    void boardShowsOnlyWhoTheConditionsAllow() {
+        Instant now = Instant.parse("2026-11-08T12:00:00Z");
+        var away30 = new com.familyx.mercbot.request.Conditions(Choices.Status.AWAY, 30, false, true);
+        var online = new com.familyx.mercbot.request.Conditions(Choices.Status.ONLINE, 30, true, true);
+        assertEquals(BoardRules.Verdict.SHOW, BoardRules.verdict(target("Okay", false, "Offline", 45, away30, now), now));
+        assertEquals(BoardRules.Verdict.HIDDEN_ONLINE, BoardRules.verdict(target("Okay", false, "Idle", 10, away30, now), now));
+        assertEquals(BoardRules.Verdict.HIDDEN_ONLINE, BoardRules.verdict(target("Okay", false, "Online", 0, away30, now), now));
+        assertEquals(BoardRules.Verdict.HIDDEN_REVIVABLE, BoardRules.verdict(target("Okay", true, "Offline", 45, away30, now), now));
+        assertEquals(BoardRules.Verdict.NOT_YET, BoardRules.verdict(target("Hospital", false, "Offline", 45, away30, now), now));
+        assertEquals(BoardRules.Verdict.HIDDEN_TRAVELLING, BoardRules.verdict(target("Traveling", false, "Offline", 45, away30, now), now));
+        assertEquals(BoardRules.Verdict.SHOW, BoardRules.verdict(target("Okay", true, "Online", 0, online, now), now));
+        assertEquals(BoardRules.Verdict.HIDDEN_OFFLINE, BoardRules.verdict(target("Okay", false, "Offline", 5, online, now), now));
+        assertEquals("Away 45m", BoardRules.activity(target("Okay", false, "Offline", 45, away30, now), now));
+        assertEquals("Online now", BoardRules.activity(target("Okay", false, "Online", 0, online, now), now));
     }
 }

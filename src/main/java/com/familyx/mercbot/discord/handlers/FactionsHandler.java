@@ -19,13 +19,14 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.modals.Modal;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -71,9 +72,9 @@ public class FactionsHandler implements InteractionHandler {
             case "view" -> list(null).show(event);
             case "add" -> event.replyModal(Modal.create(CustomId.of("factions", "addsubmit"), "Add a family faction")
                     .addComponents(
-                            ActionRow.of(TextInput.create("id", "Torn faction ID", TextInputStyle.SHORT)
+                            Label.of("Torn faction ID", TextInput.create("id", TextInputStyle.SHORT)
                                     .setRequired(true).setMaxLength(10).setPlaceholder("e.g. 9357").build()),
-                            ActionRow.of(TextInput.create("name", "Name (looked up if left blank)", TextInputStyle.SHORT)
+                            Label.of("Name (looked up if left blank)", TextInput.create("name", TextInputStyle.SHORT)
                                     .setRequired(false).setMaxLength(50).build()))
                     .build()).queue();
             case "role" -> picker("Set a leader role", "Which faction's leader role do you want to set?",

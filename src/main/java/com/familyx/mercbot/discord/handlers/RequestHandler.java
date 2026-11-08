@@ -31,12 +31,13 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.GenericComponentInteractionCreateEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.modals.Modal;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -529,22 +530,22 @@ public class RequestHandler implements InteractionHandler {
     }
 
     private Modal detailsModal(Draft d, Scenarios.Defaults preview) {
-        List<ActionRow> rows = new ArrayList<>();
+        List<Label> rows = new ArrayList<>();
         if (d.forTarget.kind == Kind.PLAYERS) {
-            rows.add(ActionRow.of(TextInput.create("players", "Player IDs (up to 25)", TextInputStyle.PARAGRAPH)
+            rows.add(Label.of("Player IDs (up to 25)", TextInput.create("players", TextInputStyle.PARAGRAPH)
                     .setRequired(true).setPlaceholder("e.g. 1234567, 2345678").setMaxLength(500).build()));
         } else if (d.forTarget.kind == Kind.FACTION) {
-            rows.add(ActionRow.of(TextInput.create("faction", "Target faction ID", TextInputStyle.SHORT)
+            rows.add(Label.of("Target faction ID", TextInput.create("faction", TextInputStyle.SHORT)
                     .setRequired(true).setPlaceholder("e.g. 12345").setMaxLength(10).build()));
         }
         if (d.mode == Mode.HITS) {
-            rows.add(ActionRow.of(TextInput.create("hits", "Hits per target", TextInputStyle.SHORT)
+            rows.add(Label.of("Hits per target", TextInput.create("hits", TextInputStyle.SHORT)
                     .setRequired(true).setValue("1").setMaxLength(3).build()));
         } else if (preview != null) {
             rows.add(startInput(preview.start(), preview));
             rows.add(endInput(preview.end(), preview));
         }
-        rows.add(ActionRow.of(TextInput.create("notes", "Notes for leaders (optional)", TextInputStyle.PARAGRAPH)
+        rows.add(Label.of("Notes for leaders (optional)", TextInput.create("notes", TextInputStyle.PARAGRAPH)
                 .setRequired(false).setMaxLength(500).build()));
         return Modal.create(CustomId.of("req", "details"), "Contract details").addComponents(rows).build();
     }
@@ -556,15 +557,15 @@ public class RequestHandler implements InteractionHandler {
                 .build();
     }
 
-    private static ActionRow startInput(Instant start, Scenarios.Defaults preview) {
-        return ActionRow.of(TextInput.create("start", "Start (UTC) · default: " + preview.startNote(), TextInputStyle.SHORT)
+    private static Label startInput(Instant start, Scenarios.Defaults preview) {
+        return Label.of("Start (UTC) · default: " + preview.startNote(), TextInput.create("start", TextInputStyle.SHORT)
                 .setRequired(false).setPlaceholder("e.g. 2026-11-08 18:00, or now").setMaxLength(16)
                 .setValue(start == null || !start.isAfter(Instant.now()) ? "now"
                         : INPUT.format(start.atOffset(ZoneOffset.UTC))).build());
     }
 
-    private static ActionRow endInput(Instant end, Scenarios.Defaults preview) {
-        return ActionRow.of(TextInput.create("end", "End (UTC) · default: " + preview.endNote(), TextInputStyle.SHORT)
+    private static Label endInput(Instant end, Scenarios.Defaults preview) {
+        return Label.of("End (UTC) · default: " + preview.endNote(), TextInput.create("end", TextInputStyle.SHORT)
                 .setRequired(false).setPlaceholder("e.g. 2026-11-09 18:00, or blank for no end").setMaxLength(16)
                 .setValue(end == null ? null : INPUT.format(end.atOffset(ZoneOffset.UTC))).build());
     }
@@ -573,15 +574,14 @@ public class RequestHandler implements InteractionHandler {
         int current = d.conditions != null && d.conditions.status() == Status.AWAY
                 ? d.conditions.awayMinutes() : Conditions.DEFAULT_AWAY_MINUTES;
         return Modal.create(CustomId.of("req", "awaymin"), "Idle or offline for how long?")
-                .addComponents(ActionRow.of(TextInput.create("minutes", "Minutes since their last action",
-                        TextInputStyle.SHORT).setRequired(true).setMaxLength(4)
+                .addComponents(Label.of("Minutes since their last action", TextInput.create("minutes", TextInputStyle.SHORT).setRequired(true).setMaxLength(4)
                         .setValue(Integer.toString(current)).build()))
                 .build();
     }
 
     private Modal hitsModal(Draft d) {
         return Modal.create(CustomId.of("req", "hitssubmit"), "Change hits")
-                .addComponents(ActionRow.of(TextInput.create("hits", "Hits per target", TextInputStyle.SHORT)
+                .addComponents(Label.of("Hits per target", TextInput.create("hits", TextInputStyle.SHORT)
                         .setRequired(true).setMaxLength(3).setValue(Integer.toString(d.hits)).build()))
                 .build();
     }

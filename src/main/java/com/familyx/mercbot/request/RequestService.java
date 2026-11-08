@@ -81,12 +81,17 @@ public class RequestService {
     private final Dms dms;
     private final AuditService audit;
     private final ApprovalCards approvals;
+    private final com.familyx.mercbot.contract.ControlPanelService controlPanels;
+    private final com.familyx.mercbot.contract.ContractClock clock;
     private final Map<Long, CachedIdentity> identities = new ConcurrentHashMap<>();
 
     public RequestService(TornLookups torn, RequestRepositories repos, ContractRepository contracts,
                           TierRepository tiers, FamilyFactionRepository factions, RoleSync roles,
                           BotSettings settings, BotProperties props, Dms dms, AuditService audit,
-                          ApprovalCards approvals) {
+                          ApprovalCards approvals, com.familyx.mercbot.contract.ControlPanelService controlPanels,
+                          com.familyx.mercbot.contract.ContractClock clock) {
+        this.controlPanels = controlPanels;
+        this.clock = clock;
         this.torn = torn;
         this.repos = repos;
         this.contracts = contracts;
@@ -386,7 +391,10 @@ public class RequestService {
         if (!live) {
             approvals.post(c, d, q, score);
         }
-        dms.send(discordId, ContractSummary.build(c, d, q, live));
+        controlPanels.create(c.id(), discordId);
+        if (live) {
+            Thread.ofVirtual().start(clock::run); // announce the start straight away
+        }
         return new AcceptResult.Placed(c, live);
     }
 

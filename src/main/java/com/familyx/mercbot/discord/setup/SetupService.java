@@ -71,10 +71,12 @@ public class SetupService {
     private final Panels panels;
     private final BotProperties props;
     private final PanelHashes hashes;
+    private final com.familyx.mercbot.board.BoardService boards;
 
     public SetupService(Layout layout, TierRepository tiers, FamilyFactionRepository factions, Panels panels,
-                        BotProperties props, PanelHashes hashes) {
+                        BotProperties props, PanelHashes hashes, com.familyx.mercbot.board.BoardService boards) {
         this.hashes = hashes;
+        this.boards = boards;
         this.layout = layout;
         this.tiers = tiers;
         this.factions = factions;
@@ -151,6 +153,7 @@ public class SetupService {
                     f.name() + " payouts", report);
         }
         syncPayouts(guild); // drops access for any faction leader role that has since been replaced
+        Thread.ofVirtual().start(boards::refresh); // fill the boards with any running contracts
         return report;
     }
 
@@ -179,8 +182,7 @@ public class SetupService {
                     new Override(tierRole, READ, NO_POSTING),
                     new Override(leaders, READ, NO_POSTING),
                     new Override(bot, BOT, none())));
-            Long messageId = ensureMessage(board, Optional.ofNullable(tier.boardMessageId()), panels.tierBoard(tier),
-                    "#" + board.getName() + " board", report);
+            Long messageId = boards.ensureBoard(board, tier);
             tiers.setDiscordIds(tier.id(), tierRole.getIdLong(), board.getIdLong(), messageId);
             if (tierRole.getColorRaw() != tier.colour()) {
                 tierRole.getManager().setColor(tier.colour()).complete();

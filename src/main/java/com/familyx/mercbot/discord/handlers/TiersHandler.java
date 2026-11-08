@@ -22,12 +22,13 @@ import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.modals.Modal;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -318,20 +319,21 @@ public class TiersHandler implements InteractionHandler {
 
     private Modal detailsModal(Tier t) {
         int nextRank = tiers.findActive().stream().mapToInt(Tier::rank).max().orElse(0) + 1;
-        TextInput name = TextInput.create("name", "Name (also the role and channel name)", TextInputStyle.SHORT)
+        TextInput name = TextInput.create("name", TextInputStyle.SHORT)
                 .setRequired(true).setMaxLength(30).setValue(t == null ? null : t.name()).build();
-        TextInput price = TextInput.create("price", "Price per hit", TextInputStyle.SHORT)
+        TextInput price = TextInput.create("price", TextInputStyle.SHORT)
                 .setRequired(true).setMaxLength(20).setPlaceholder("e.g. 2.4m")
                 .setValue(t == null ? null : Money.shortForm(t.pricePerHit()).replace("$", "")).build();
-        TextInput colour = TextInput.create("colour", "Colour (hex)", TextInputStyle.SHORT)
+        TextInput colour = TextInput.create("colour", TextInputStyle.SHORT)
                 .setRequired(true).setMaxLength(7).setPlaceholder("#C0C0C0")
                 .setValue(t == null ? null : String.format("#%06X", t.colour() & 0xFFFFFF)).build();
-        TextInput rank = TextInput.create("rank", "Rank (1 = lowest)", TextInputStyle.SHORT)
+        TextInput rank = TextInput.create("rank", TextInputStyle.SHORT)
                 .setRequired(true).setMaxLength(2)
                 .setValue(Integer.toString(t == null ? nextRank : t.rank())).build();
         return Modal.create(t == null ? CustomId.of("tiers", "addsubmit") : CustomId.of("tiers", "editsubmit", t.id()),
                         t == null ? "Add a tier" : "Edit " + t.name())
-                .addComponents(ActionRow.of(name), ActionRow.of(price), ActionRow.of(colour), ActionRow.of(rank))
+                .addComponents(Label.of("Name (also the role and channel name)", name), Label.of("Price per hit", price),
+                        Label.of("Colour (hex)", colour), Label.of("Rank (1 = lowest)", rank))
                 .build();
     }
 

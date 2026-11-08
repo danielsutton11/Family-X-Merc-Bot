@@ -18,7 +18,9 @@
 
     <properties>
         <java.version>21</java.version>
-        <jda.version>5.2.1</jda.version>
+        <jda.version>6.6.0</jda.version>
+        <!-- JDA 6 uses OkHttp 5, which needs Kotlin 2.x; Spring Boot 3.3 would otherwise pin Kotlin 1.9. -->
+        <kotlin.version>2.2.21</kotlin.version>
     </properties>
 
     <dependencies>

@@ -44,7 +44,6 @@ public class BotStarter {
         }
         guild.updateCommands().addCommands(
                 Commands.slash(SetupHandler.COMMAND, "Build or repair the merc channels, roles and panels (Merc Managers)")
-                        .setGuildOnly(true)
                         // Hidden from members without Manage Server by default; server admins can open it up
                         // to the Merc Managers role under Server Settings > Integrations. The bot also checks the role.
                         .setDefaultPermissions(DefaultMemberPermissions.DISABLED))

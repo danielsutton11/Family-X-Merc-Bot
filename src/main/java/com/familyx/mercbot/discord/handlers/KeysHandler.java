@@ -21,11 +21,12 @@ import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.modals.Modal;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -79,7 +80,7 @@ public class KeysHandler implements InteractionHandler {
         switch (id.sub()) {
             case "view" -> view(user, null).show(event);
             case "add" -> event.replyModal(Modal.create(CustomId.of("keys", "submit"), "Add your leader API key")
-                    .addComponents(ActionRow.of(TextInput.create("key", "Torn API key", TextInputStyle.SHORT)
+                    .addComponents(Label.of("Torn API key", TextInput.create("key", TextInputStyle.SHORT)
                             .setMinLength(16).setMaxLength(16).setRequired(true)
                             .setPlaceholder("16 letters and numbers").build()))
                     .build()).queue();

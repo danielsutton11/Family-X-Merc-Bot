@@ -25,12 +25,13 @@ import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.utils.messages.MessageEditBuilder;
 import org.springframework.stereotype.Component;
 
@@ -220,7 +221,7 @@ public class MercHandler implements InteractionHandler {
 
     private Modal keyModal(String title) {
         return Modal.create(CustomId.of("merc", "submit"), title)
-                .addComponents(ActionRow.of(TextInput.create("key", "Torn API key (Limited)", TextInputStyle.SHORT)
+                .addComponents(Label.of("Torn API key (Limited)", TextInput.create("key", TextInputStyle.SHORT)
                         .setMinLength(16).setMaxLength(16).setRequired(true)
                         .setPlaceholder("16 letters and numbers").build()))
                 .build();

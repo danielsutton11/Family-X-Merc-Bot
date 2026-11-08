@@ -10,8 +10,8 @@ import com.familyx.mercbot.tier.TierRepository.Tier;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -48,7 +48,7 @@ public class Panels {
             Set<String> seen = new HashSet<>();
             for (ActionRow row : rows) {
                 for (var component : row.getActionComponents()) {
-                    String id = component.getId();
+                    String id = component.getCustomId();
                     if (id != null && !seen.add(id)) {
                         throw new IllegalStateException("Duplicate component id in panel: " + id);
                     }
@@ -154,18 +154,6 @@ public class Panels {
         if (t.requiresStricken()) return "Silver\n-# + Stricken";
         if (t.requiresMerits()) return "10/10 merits\n-# + max hosp perk";
         return "Open to all\n-# no requirements";
-    }
-
-    // ------------------------------------------------------------------ tier boards
-
-    public Panel tierBoard(Tier tier) {
-        EmbedBuilder eb = new EmbedBuilder()
-                .setColor(new Color(tier.colour()))
-                .setAuthor(tier.name().toUpperCase() + " CONTRACTS")
-                .setTitle(tierIcon(tier) + "  No targets right now")
-                .setDescription("Targets appear here as soon as a " + tier.name() + " contract goes live.\n"
-                        + "-# You'll be pinged when there's work.");
-        return new Panel(eb.build(), List.of());
     }
 
     // ------------------------------------------------------------------ #merc-leaderboard
