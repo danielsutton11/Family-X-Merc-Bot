@@ -232,7 +232,7 @@ public class ControlPanelHandler implements InteractionHandler {
                 changed(c.id());
                 event.editMessage(new MessageEditBuilder().setReplace(true).setEmbeds(new EmbedBuilder()
                                 .setColor(Panels.GOOD).setTitle("🎯  One hit allowed on " + t.get().name())
-                                .setDescription("They show on the board, flagged \"📌 requester override, 1 hit\", as soon "
+                                .setDescription("They show on the board, flagged \"📌 Requester Override (1 hit)\", as soon "
                                         + "as they can be hit.").build()).build())
                         .queue(h -> AutoDismiss.after(h, AutoDismiss.REPORT));
             }

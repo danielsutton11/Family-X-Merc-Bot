@@ -185,8 +185,7 @@ public class BoardService {
         boolean revivableOnGold = gold && Boolean.TRUE.equals(t.revivable()) && t.conditions().allowRevivable();
         String name = t.name() == null ? "Player " + t.tornId() : t.name();
         String line1 = "**" + name + "** [" + t.tornId() + "]" + (t.level() == null ? "" : " · Level " + t.level());
-        String what = revivableOnGold ? "🔴 **Don't Use Stricken**" : contractLabel(t);
-        String line2 = "BSP **" + BspService.format(r.bsp()) + "** · " + what;
+        String line2 = "BSP **" + BspService.format(r.bsp()) + "** · " + contractLabel(t);
         List<String> hints = new ArrayList<>();
         hints.add(t.ref());
         if (revivableOnGold) {
@@ -194,8 +193,14 @@ public class BoardService {
         }
         hints.add(BoardRules.activity(t, now));
         if (t.hasOverride()) {
-            hints.add("📌 requester override, 1 hit");
-        } else if (gold && !revivableOnGold) {
+            // Overrides on Gold always need Stricken, even on a revivable target.
+            hints.add("📌 **Requester Override** (1 hit)");
+            if (gold) {
+                hints.add("⚡ **Stricken Required**");
+            }
+        } else if (revivableOnGold) {
+            hints.add("🔴 **Don't Use Stricken**");
+        } else if (gold) {
             hints.add("⚡ **Stricken Required**");
         }
         if (t.hitsRequired() != null && t.hitsRequired() > 1) {
