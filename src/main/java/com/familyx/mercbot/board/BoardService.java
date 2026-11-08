@@ -185,7 +185,7 @@ public class BoardService {
         boolean revivableOnGold = gold && Boolean.TRUE.equals(t.revivable()) && t.conditions().allowRevivable();
         String name = t.name() == null ? "Player " + t.tornId() : t.name();
         String line1 = "**" + name + "** [" + t.tornId() + "]" + (t.level() == null ? "" : " · Level " + t.level());
-        String what = revivableOnGold ? "⚠️ **Revivable: don't use Stricken**" : contractLabel(t);
+        String what = revivableOnGold ? "🔴 **Don't Use Stricken**" : contractLabel(t);
         String line2 = "BSP **" + BspService.format(r.bsp()) + "** · " + what;
         List<String> hints = new ArrayList<>();
         hints.add(t.ref());
