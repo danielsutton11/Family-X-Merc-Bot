@@ -55,6 +55,42 @@ public class BspService {
         return out;
     }
 
+    /**
+     * Like {@link #estimates}, but waits (up to a few seconds) for any missing estimates instead of
+     * leaving them for next time. Used for pings, which are only sent once.
+     */
+    public Map<Long, Long> estimatesNow(List<Long> tornIds) {
+        Map<Long, Long> have = estimates(tornIds);
+        List<Long> missing = tornIds.stream().filter(id -> !have.containsKey(id)).toList();
+        if (missing.isEmpty()) {
+            return have;
+        }
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (System.currentTimeMillis() < deadline && missing.stream().anyMatch(inFlight::contains)) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        Map<Long, Long> again = new HashMap<>(have);
+        again.putAll(cached(missing));
+        return again;
+    }
+
+    private Map<Long, Long> cached(List<Long> tornIds) {
+        Map<Long, Long> out = new HashMap<>();
+        if (tornIds.isEmpty()) {
+            return out;
+        }
+        String in = String.join(",", tornIds.stream().map(String::valueOf).toList());
+        jdbc.sql("SELECT target_torn_id, tbs FROM bsp_prediction WHERE tbs > 0 AND target_torn_id IN (" + in + ")")
+                .query((org.springframework.jdbc.core.RowCallbackHandler) rs ->
+                        out.put(rs.getLong("target_torn_id"), rs.getLong("tbs")));
+        return out;
+    }
+
     private void fetchLater(long tornId) {
         if (!inFlight.add(tornId)) {
             return;

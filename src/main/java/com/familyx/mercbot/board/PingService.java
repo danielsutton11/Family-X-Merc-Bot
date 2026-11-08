@@ -38,14 +38,14 @@ import java.util.concurrent.TimeUnit;
 /**
  * Pings in the tier channels (scope doc 5.3): a card when a contract starts and a card when a
  * target comes back. Only mercs whose Pings setting allows it are mentioned, pings within the
- * grouping window are combined, and each ping removes itself after 10 minutes.
+ * grouping window are combined, and each ping removes itself after a minute.
  */
 @Service
 public class PingService {
 
     private static final Logger log = LoggerFactory.getLogger(PingService.class);
     private static final Duration WINDOW = Duration.ofMinutes(2);
-    private static final long DELETE_AFTER_MINUTES = 10;
+    private static final long DELETE_AFTER_SECONDS = 60;
     private static final int MAX_CARDS = 5;
     private static final String ATTACK_URL = "https://www.torn.com/page.php?sid=attack&user2ID=";
 
@@ -56,12 +56,15 @@ public class PingService {
     private final MercRepository mercs;
     private final RoleSync roles;
     private final TierRepository tiers;
+    private final BspService bsp;
     private final Map<Integer, Instant> lastSent = new ConcurrentHashMap<>();
     private final Map<Integer, List<Back>> pending = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().factory());
 
-    public PingService(ObjectProvider<JDA> jda, MercRepository mercs, RoleSync roles, TierRepository tiers) {
+    public PingService(ObjectProvider<JDA> jda, MercRepository mercs, RoleSync roles, TierRepository tiers,
+                       BspService bsp) {
+        this.bsp = bsp;
         this.jda = jda;
         this.mercs = mercs;
         this.roles = roles;
@@ -76,7 +79,7 @@ public class PingService {
         Instant last = lastSent.get(tier.id());
         Instant now = Instant.now();
         if (last == null || !last.plus(WINDOW).isAfter(now)) {
-            flush(tier.id());
+            scheduler.execute(() -> flush(tier.id())); // off the board thread: may wait for BSP
         } else if (pending.get(tier.id()).size() == back.size()) {
             // First item of a new group: send it when the window ends.
             long delay = Duration.between(now, last.plus(WINDOW)).toMillis();
@@ -99,7 +102,10 @@ public class PingService {
         if (!mentions.isEmpty()) {
             parts.add(TextDisplay.of(mentions));
         }
-        for (Back b : items.stream().limit(MAX_CARDS).toList()) {
+        List<Back> shown = items.stream().limit(MAX_CARDS).toList();
+        // Wait for BSP estimates the board hadn't needed yet, so the card isn't sent with "?".
+        Map<Long, Long> bsp = this.bsp.estimatesNow(shown.stream().map(b -> b.target().tornId()).toList());
+        for (Back b : shown) {
             BoardTarget t = b.target();
             String name = t.name() == null ? "Player " + t.tornId() : t.name();
             String hitsLeft = t.hitsRequired() == null ? "–" : Integer.toString(t.hitsRequired() - t.hitsDone());
@@ -107,7 +113,7 @@ public class PingService {
                     TextDisplay.of("-# **TARGET BACK · @" + tier.name().toUpperCase() + "**\n### " + name
                             + (b.fromHospital() ? " is out of hospital" : " is back on the board") + "\n-# "
                             + BoardService.contractLabel(t) + " · " + tier.name() + " · " + t.ref()),
-                    TextDisplay.of("**BSP** " + BspService.format(b.bsp()) + "   **Level** "
+                    TextDisplay.of("**BSP** " + BspService.format(bsp.getOrDefault(t.tornId(), b.bsp())) + "   **Level** "
                             + (t.level() == null ? "–" : t.level()) + "   **Hits left** " + hitsLeft),
                     ActionRow.of(Button.link(ATTACK_URL + t.tornId(), "Attack ↗")))
                     .withAccentColor(tier.colour()));
@@ -162,7 +168,7 @@ public class PingService {
         }
         channel.sendMessage(new MessageCreateBuilder().useComponentsV2().setComponents(parts)
                         .setAllowedMentions(EnumSet.of(Message.MentionType.USER)).build())
-                .queue(m -> m.delete().queueAfter(DELETE_AFTER_MINUTES, TimeUnit.MINUTES, null, ignored -> { }),
+                .queue(m -> m.delete().queueAfter(DELETE_AFTER_SECONDS, TimeUnit.SECONDS, null, ignored -> { }),
                         e -> log.warn("Ping in {} failed: {}", tier.name(), e.getMessage()));
     }
 }
