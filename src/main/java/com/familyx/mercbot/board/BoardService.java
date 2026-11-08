@@ -8,7 +8,10 @@ import com.familyx.mercbot.discord.PanelHashes;
 import com.familyx.mercbot.discord.Panels;
 import com.familyx.mercbot.tier.TierRepository;
 import com.familyx.mercbot.tier.TierRepository.Tier;
+import com.familyx.mercbot.discord.CustomId;
 import net.dv8tion.jda.api.components.MessageTopLevelComponent;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
@@ -49,8 +52,15 @@ public class BoardService {
     /** One row as drawn on a board. */
     public record Row(BoardTarget target, Long bsp) { }
 
-    /** What a board shows: the rows, how many more there are, and why the rest are hidden. */
-    public record Board(Tier tier, List<Row> rows, int more, Map<Verdict, Integer> hidden) { }
+    /**
+     * What a board shows: the top rows, every row in order (for the private pages), how many
+     * more there are beyond the top, and why the rest are hidden.
+     */
+    public record Board(Tier tier, List<Row> rows, List<Row> all, int more, Map<Verdict, Integer> hidden) {
+        public int pages() {
+            return Math.max(1, (all.size() + MAX_ROWS - 1) / MAX_ROWS);
+        }
+    }
 
     private final TargetRepository targets;
     private final TierRepository tiers;
@@ -122,13 +132,15 @@ public class BoardService {
                 hidden.merge(v, 1, Integer::sum);
             }
         }
-        shown.sort(Comparator.comparingInt(BoardTarget::priority).reversed()
-                .thenComparing(BoardTarget::contractCreated, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(t -> t.name() == null ? "" : t.name().toLowerCase()));
-        List<BoardTarget> top = shown.subList(0, Math.min(MAX_ROWS, shown.size()));
-        Map<Long, Long> estimates = bsp.estimates(top.stream().map(BoardTarget::tornId).toList());
-        List<Row> rows = top.stream().map(t -> new Row(t, estimates.get(t.tornId()))).toList();
-        return new Board(tier, rows, shown.size() - rows.size(), hidden);
+        // Contract priority first, then the strongest targets (highest BSP estimate); no estimate goes last.
+        Map<Long, Long> estimates = bsp.estimates(shown.stream().map(BoardTarget::tornId).toList());
+        List<Row> all = new ArrayList<>(shown.stream().map(t -> new Row(t, estimates.get(t.tornId()))).toList());
+        all.sort(Comparator.comparingInt((Row r) -> r.target().priority()).reversed()
+                .thenComparing(Row::bsp, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(r -> r.target().contractCreated(), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(r -> r.target().name() == null ? "" : r.target().name().toLowerCase()));
+        List<Row> rows = all.subList(0, Math.min(MAX_ROWS, all.size()));
+        return new Board(tier, List.copyOf(rows), List.copyOf(all), all.size() - rows.size(), hidden);
     }
 
     // ------------------------------------------------------------------ drawing
@@ -159,6 +171,10 @@ public class BoardService {
         if (!footer.isEmpty()) {
             parts.add(Separator.createDivider(Separator.Spacing.SMALL));
             parts.add(TextDisplay.of(footer));
+        }
+        if (b.more() > 0) {
+            parts.add(ActionRow.of(Button.secondary(CustomId.of("board", "page", tier.id(), 2),
+                    "See all " + n + " (page 2 of " + b.pages() + ") ▶").withEmoji(Emoji.fromUnicode("📄"))));
         }
         return List.of(Container.of(parts).withAccentColor(tier.colour()));
     }
@@ -197,9 +213,6 @@ public class BoardService {
 
     static String footer(Board b) {
         List<String> lines = new ArrayList<>();
-        if (b.more() > 0) {
-            lines.add("+" + b.more() + " more waiting below the top " + MAX_ROWS);
-        }
         Map<Verdict, String> labels = new LinkedHashMap<>();
         labels.put(Verdict.HIDDEN_REVIVABLE, "revivable");
         labels.put(Verdict.HIDDEN_ONLINE, "online (contract wants offline)");
@@ -219,6 +232,50 @@ public class BoardService {
         return lines.isEmpty() ? "" : "-# " + String.join("\n-# ", lines);
     }
 
+    /** The board for one tier as it stands right now (for a merc's private pages). */
+    public Board boardFor(int tierId) {
+        Tier tier = tiers.find(tierId).orElse(null);
+        if (tier == null) {
+            return null;
+        }
+        List<BoardTarget> list = targets.running().stream().filter(t -> t.tierId() == tierId).toList();
+        return build(tier, list, Instant.now());
+    }
+
+    /** One private page of a board: rows {@code (page-1)*10} onwards, with page buttons. */
+    public static List<MessageTopLevelComponent> drawPage(Board b, int page, Instant asOf) {
+        Tier tier = b.tier();
+        int pages = b.pages();
+        int p = Math.max(1, Math.min(page, pages));
+        int from = (p - 1) * MAX_ROWS;
+        List<Row> rows = b.all().subList(Math.min(from, b.all().size()), Math.min(from + MAX_ROWS, b.all().size()));
+        List<ContainerChildComponent> parts = new ArrayList<>();
+        String header = "-# **" + tier.name().toUpperCase() + " CONTRACTS · PAGE " + p + " OF " + pages + "**\n"
+                + (rows.isEmpty() ? "### No targets on this page"
+                : "### Targets " + (from + 1) + "–" + (from + rows.size()) + " of " + b.all().size())
+                + "\n-# As of " + java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss").withZone(java.time.ZoneOffset.UTC)
+                .format(asOf) + " UTC · press Refresh for the latest";
+        parts.add(TextDisplay.of(header));
+        if (!rows.isEmpty()) {
+            parts.add(Separator.createDivider(Separator.Spacing.SMALL));
+            for (Row r : rows) {
+                parts.add(Section.of(Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗"),
+                        TextDisplay.of(rowText(tier, r, asOf))));
+            }
+        }
+        Button prev = Button.secondary(CustomId.of("board", "prev", tier.id(), p - 1), "Page " + (p - 1))
+                .withEmoji(Emoji.fromUnicode("◀️"));
+        Button next = Button.secondary(CustomId.of("board", "next", tier.id(), p + 1), "Page " + (p + 1))
+                .withEmoji(Emoji.fromUnicode("▶️"));
+        parts.add(ActionRow.of(
+                p > 1 ? prev : Button.secondary(CustomId.of("board", "prev", tier.id(), 1), "Page 1")
+                        .withEmoji(Emoji.fromUnicode("◀️")).asDisabled(),
+                Button.primary(CustomId.of("board", "refresh", tier.id(), p), "Refresh").withEmoji(Emoji.fromUnicode("🔄")),
+                p < pages ? next : Button.secondary(CustomId.of("board", "next", tier.id(), pages), "Page " + pages)
+                        .withEmoji(Emoji.fromUnicode("▶️")).asDisabled()));
+        return List.of(Container.of(parts).withAccentColor(tier.colour()));
+    }
+
     // ------------------------------------------------------------------ setup
 
     /**
@@ -226,7 +283,7 @@ public class BoardService {
      * the layout change are replaced, because Discord can't switch an old message over.
      */
     public long ensureBoard(TextChannel channel, Tier tier) {
-        Board empty = new Board(tier, List.of(), 0, Map.of());
+        Board empty = new Board(tier, List.of(), List.of(), 0, Map.of());
         if (tier.boardMessageId() != null) {
             try {
                 Message m = channel.retrieveMessageById(tier.boardMessageId()).complete();
