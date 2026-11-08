@@ -47,7 +47,7 @@ public class PingService {
     private static final Duration WINDOW = Duration.ofMinutes(2);
     private static final long DELETE_AFTER_MINUTES = 10;
     private static final int MAX_CARDS = 5;
-    private static final String ATTACK_URL = "https://www.torn.com/loader.php?sid=attack&user2ID=";
+    private static final String ATTACK_URL = "https://www.torn.com/page.php?sid=attack&user2ID=";
 
     /** A target that came back, with how to word it. */
     public record Back(BoardTarget target, Long bsp, boolean fromHospital) { }

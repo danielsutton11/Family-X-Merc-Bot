@@ -44,7 +44,7 @@ public class BoardService {
 
     /** Rows per board without claims (scope doc 5.3). */
     public static final int MAX_ROWS = 10;
-    private static final String ATTACK_URL = "https://www.torn.com/loader.php?sid=attack&user2ID=";
+    private static final String ATTACK_URL = "https://www.torn.com/page.php?sid=attack&user2ID=";
 
     /** One row as drawn on a board. */
     public record Row(BoardTarget target, Long bsp) { }
