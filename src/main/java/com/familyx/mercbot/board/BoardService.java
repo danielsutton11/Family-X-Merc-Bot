@@ -71,6 +71,18 @@ public class BoardService {
     /** Each target's verdict at the last refresh, to spot targets coming back. */
     private final Map<Long, Verdict> lastVerdict = new ConcurrentHashMap<>();
 
+    /** A merc's open "See all" page, kept up to date until Discord stops letting the bot edit it. */
+    private record OpenPage(int tierId, int page, net.dv8tion.jda.api.interactions.InteractionHook hook,
+                            Instant until, String lastDrawn) {
+        OpenPage drawn(String text) {
+            return new OpenPage(tierId, page, hook, until, text);
+        }
+    }
+
+    /** Discord allows edits to a private message for 15 minutes after the last click; stop just before. */
+    private static final java.time.Duration PAGE_LIVE_FOR = java.time.Duration.ofMinutes(14);
+    private final Map<Long, OpenPage> openPages = new ConcurrentHashMap<>();
+
     public BoardService(TargetRepository targets, TierRepository tiers, BspService bsp, MessageUpdater updater,
                         PanelHashes hashes, PingService pings) {
         this.targets = targets;
@@ -112,6 +124,7 @@ public class BoardService {
                 pings.targetsBack(tier, back.stream().map(t -> new PingService.Back(t, est.get(t.tornId()),
                         fromHospital.getOrDefault(t.id(), false))).toList());
             }
+            updateOpenPages(board, now);
             if (tier.channelId() != null && tier.boardMessageId() != null) {
                 MessageEditData data = editData(board);
                 updater.request("board:" + tier.id(), () -> Optional.of(
@@ -247,6 +260,43 @@ public class BoardService {
         return build(tier, list, Instant.now());
     }
 
+    /** Remembers a "See all" page so it keeps up with the board (replaces any earlier record of it). */
+    public void trackPage(long messageId, int tierId, int page, net.dv8tion.jda.api.interactions.InteractionHook hook,
+                          Board drawnFrom, Instant asOf) {
+        openPages.put(messageId, new OpenPage(tierId, page, hook, Instant.now().plus(PAGE_LIVE_FOR),
+                pageText(drawnFrom, page, asOf)));
+    }
+
+    /** Re-draws the open pages of this board whose content changed since they were last drawn. */
+    private void updateOpenPages(Board board, Instant now) {
+        openPages.entrySet().removeIf(e -> !e.getValue().until().isAfter(now));
+        for (Map.Entry<Long, OpenPage> e : openPages.entrySet()) {
+            OpenPage open = e.getValue();
+            if (open.tierId() != board.tier().id()) {
+                continue;
+            }
+            String text = pageText(board, open.page(), now);
+            if (text.equals(open.lastDrawn())) {
+                continue;
+            }
+            long messageId = e.getKey();
+            openPages.put(messageId, open.drawn(text));
+            open.hook().editOriginalComponents(drawPage(board, open.page(), now)).useComponentsV2()
+                    .queue(null, failed -> openPages.remove(messageId)); // dismissed or expired
+        }
+    }
+
+    /** What a page shows, without its timestamp, to tell whether it needs re-drawing. */
+    private static String pageText(Board b, int page, Instant asOf) {
+        int p = Math.max(1, Math.min(page, b.pages()));
+        int from = (p - 1) * MAX_ROWS;
+        StringBuilder sb = new StringBuilder().append(p).append('/').append(b.pages()).append('/').append(b.all().size());
+        for (Row r : b.all().subList(Math.min(from, b.all().size()), Math.min(from + MAX_ROWS, b.all().size()))) {
+            sb.append('\n').append(rowText(b.tier(), r, asOf));
+        }
+        return sb.toString();
+    }
+
     /** One private page of a board: rows {@code (page-1)*10} onwards, with page buttons. */
     public static List<MessageTopLevelComponent> drawPage(Board b, int page, Instant asOf) {
         Tier tier = b.tier();
@@ -259,7 +309,7 @@ public class BoardService {
                 + (rows.isEmpty() ? "### No targets on this page"
                 : "### Targets " + (from + 1) + "–" + (from + rows.size()) + " of " + b.all().size())
                 + "\n-# As of " + java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss").withZone(java.time.ZoneOffset.UTC)
-                .format(asOf) + " UTC · press Refresh for the latest";
+                .format(asOf) + " UTC · updates automatically";
         parts.add(TextDisplay.of(header));
         if (!rows.isEmpty()) {
             parts.add(Separator.createDivider(Separator.Spacing.SMALL));

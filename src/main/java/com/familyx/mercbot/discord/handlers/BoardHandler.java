@@ -43,13 +43,21 @@ public class BoardHandler implements InteractionHandler {
                     .queue(h -> AutoDismiss.after(h, AutoDismiss.SHORT));
             return;
         }
-        List<MessageTopLevelComponent> parts = BoardService.drawPage(board, page, Instant.now());
+        Instant now = Instant.now();
+        List<MessageTopLevelComponent> parts = BoardService.drawPage(board, page, now);
         if (event.getMessage().isEphemeral()) {
             long messageId = event.getMessage().getIdLong();
             event.editMessage(new MessageEditBuilder().setReplace(true).useComponentsV2().setComponents(parts).build())
-                    .queue(h -> ScreenTimeout.restart(messageId, h));
+                    .queue(h -> {
+                        ScreenTimeout.restart(messageId, h);
+                        boards.trackPage(messageId, tierId, page, h, board, now);
+                    });
         } else {
-            event.replyComponents(parts).useComponentsV2().setEphemeral(true).queue(ScreenTimeout::restart);
+            event.replyComponents(parts).useComponentsV2().setEphemeral(true).queue(h ->
+                    h.retrieveOriginal().queue(m -> {
+                        ScreenTimeout.restart(m.getIdLong(), h);
+                        boards.trackPage(m.getIdLong(), tierId, page, h, board, now);
+                    }, ignored -> { }));
         }
     }
 }
