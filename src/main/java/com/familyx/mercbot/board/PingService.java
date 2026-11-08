@@ -11,8 +11,6 @@ import com.familyx.mercbot.tier.TierRepository;
 import com.familyx.mercbot.tier.TierRepository.Tier;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.components.MessageTopLevelComponent;
-import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Message;
@@ -46,8 +44,7 @@ public class PingService {
     private static final Logger log = LoggerFactory.getLogger(PingService.class);
     private static final Duration WINDOW = Duration.ofMinutes(2);
     private static final long DELETE_AFTER_SECONDS = 60;
-    private static final int MAX_CARDS = 5;
-    private static final String ATTACK_URL = "https://www.torn.com/page.php?sid=attack&user2ID=";
+    private static final int MAX_ROWS = 10;
 
     /** A target that came back, with how to word it. */
     public record Back(BoardTarget target, Long bsp, boolean fromHospital) { }
@@ -102,25 +99,37 @@ public class PingService {
         if (!mentions.isEmpty()) {
             parts.add(TextDisplay.of(mentions));
         }
-        List<Back> shown = items.stream().limit(MAX_CARDS).toList();
-        // Wait for BSP estimates the board hadn't needed yet, so the card isn't sent with "?".
-        Map<Long, Long> bsp = this.bsp.estimatesNow(shown.stream().map(b -> b.target().tornId()).toList());
+        // Wait for BSP estimates the board hadn't needed yet, so the ping isn't sent with "?".
+        Map<Long, Long> bsp = this.bsp.estimatesNow(items.stream().map(b -> b.target().tornId()).distinct().toList());
+        // A target that came back twice within the window is listed once.
+        Map<Long, Back> unique = new java.util.LinkedHashMap<>();
+        items.forEach(b -> unique.put(b.target().id(), b));
+        items = new ArrayList<>(unique.values());
+        List<Back> sorted = new ArrayList<>(items);
+        sorted.sort(java.util.Comparator.comparing((Back b) -> bsp.getOrDefault(b.target().tornId(), b.bsp()),
+                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())));
+        List<Back> shown = sorted.stream().limit(MAX_ROWS).toList();
+
+        List<net.dv8tion.jda.api.components.container.ContainerChildComponent> rows = new ArrayList<>();
+        rows.add(TextDisplay.of("-# **TARGETS BACK · @" + tier.name().toUpperCase() + "**\n### " + Panels.tierIcon(tier)
+                + "  " + (items.size() == 1 ? "1 target is" : items.size() + " targets are") + " back on the board"
+                + "\n-# Attack them from the board"));
+        Instant now = Instant.now();
         for (Back b : shown) {
             BoardTarget t = b.target();
             String name = t.name() == null ? "Player " + t.tornId() : t.name();
-            String hitsLeft = t.hitsRequired() == null ? "–" : Integer.toString(t.hitsRequired() - t.hitsDone());
-            parts.add(Container.of(
-                    TextDisplay.of("-# **TARGET BACK · @" + tier.name().toUpperCase() + "**\n### " + name
-                            + (b.fromHospital() ? " is out of hospital" : " is back on the board") + "\n-# "
-                            + BoardService.contractLabel(t) + " · " + tier.name() + " · " + t.ref()),
-                    TextDisplay.of("**BSP** " + BspService.format(bsp.getOrDefault(t.tornId(), b.bsp())) + "   **Level** "
-                            + (t.level() == null ? "–" : t.level()) + "   **Hits left** " + hitsLeft),
-                    ActionRow.of(Button.link(ATTACK_URL + t.tornId(), "Attack ↗")))
-                    .withAccentColor(tier.colour()));
+            String line3 = t.ref() + " · " + (b.fromHospital() ? "out of hospital" : "back on the board") + " · "
+                    + BoardRules.activity(t, now)
+                    + (t.hitsRequired() == null ? "" : " · " + (t.hitsRequired() - t.hitsDone()) + " hits left");
+            rows.add(TextDisplay.of(
+                    "**" + name + "** [" + t.tornId() + "]" + (t.level() == null ? "" : " · Level " + t.level())
+                            + "\nBSP **" + BspService.format(bsp.getOrDefault(t.tornId(), b.bsp())) + "** · "
+                            + BoardService.contractLabel(t) + "\n-# " + line3));
         }
-        if (items.size() > MAX_CARDS) {
-            parts.add(TextDisplay.of("-# +" + (items.size() - MAX_CARDS) + " more back on the board"));
+        if (items.size() > MAX_ROWS) {
+            rows.add(TextDisplay.of("-# +" + (items.size() - MAX_ROWS) + " more: see the board"));
         }
+        parts.add(Container.of(rows).withAccentColor(tier.colour()));
         send(tier, parts);
     }
 
