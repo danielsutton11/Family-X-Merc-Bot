@@ -189,11 +189,12 @@ public class ClaimService {
      * a claim ends when its lock runs out (EXPIRED) or its target is hit or leaves the board
      * (RELEASED; phase 4 tells hits apart). Returns the claims still open, by target row.
      */
-    public Map<Long, OpenClaim> sweep(List<BoardTarget> running, Instant now) {
+    public Sweep sweep(List<BoardTarget> running, Instant now) {
         if (!settings.claimsOn()) {
             claims.closeAll();
-            return Map.of();
+            return new Sweep(Map.of(), Set.of());
         }
+        Set<Long> expired = new java.util.HashSet<>();
         Map<Long, BoardTarget> byId = new java.util.HashMap<>();
         running.forEach(t -> byId.put(t.id(), t));
         Duration lock = Duration.ofSeconds(settings.claimLockSeconds());
@@ -231,13 +232,17 @@ public class ClaimService {
                 }
                 if (c.expiresAt() != null && !c.expiresAt().isAfter(now)) {
                     claims.close(c.id(), "EXPIRED");
+                    expired.add(c.targetId());
                     continue;
                 }
             }
             open.put(c.targetId(), c);
         }
-        return open;
+        return new Sweep(open, expired);
     }
+
+    /** Claims still open (by target row), and rows whose claim just ran out without a hit. */
+    public record Sweep(Map<Long, OpenClaim> open, Set<Long> expired) { }
 
     // ------------------------------------------------------------------ wording
 

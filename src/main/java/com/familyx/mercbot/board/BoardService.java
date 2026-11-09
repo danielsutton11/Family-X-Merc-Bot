@@ -115,7 +115,8 @@ public class BoardService {
     public synchronized void refresh() {
         Instant now = Instant.now();
         List<BoardTarget> running = targets.running();
-        openClaims = claims.sweep(running, now);
+        ClaimService.Sweep sweep = claims.sweep(running, now);
+        openClaims = sweep.open();
         Map<Integer, List<BoardTarget>> byTier = new HashMap<>();
         for (BoardTarget t : running) {
             byTier.computeIfAbsent(t.tierId(), k -> new ArrayList<>()).add(t);
@@ -136,6 +137,14 @@ public class BoardService {
                     // Includes targets returning because their contract was resumed.
                     back.add(t);
                     fromHospital.put(t.id(), before == Verdict.NOT_YET);
+                }
+            }
+            back.removeIf(t -> openClaims.containsKey(t.id())); // someone already holds it: no ping
+            for (BoardTarget t : list) {
+                // A claim ran out without a hit: the target is free for everyone, so ping.
+                if (sweep.expired().contains(t.id()) && BoardRules.verdict(t, now) == Verdict.SHOW
+                        && back.stream().noneMatch(x -> x.id() == t.id())) {
+                    back.add(t);
                 }
             }
             if (!back.isEmpty()) {
