@@ -89,6 +89,16 @@ public class HitService {
      * for the next pass. Returns how many hits were recorded.
      */
     public int process(List<TornAttack> batch, Instant settledBefore) {
+        // Any attack by a claimer on their claimed target during the lock counts as taking part,
+        // even if they lost: that claim can't become a no-show.
+        Set<Long> claimers = hits.unjudgedClaimers();
+        if (!claimers.isEmpty()) {
+            for (TornAttack a : batch) {
+                if (a.attackerId() != null && claimers.contains(a.attackerId())) {
+                    hits.markAttempt(a.defenderId(), a.attackerId(), a.started());
+                }
+            }
+        }
         int recorded = 0;
         for (TornAttack.Fight fight : TornAttack.fights(batch)) {
             TornAttack fin = fight.finish();
@@ -258,6 +268,8 @@ public class HitService {
             if (claimerTookPart) {
                 hits.judge(cl.id(), "HIT", true);
                 hits.resetNoShows(cl.mercId());
+            } else if (cl.attempted()) {
+                hits.judge(cl.id(), "RELEASED", true); // the claimer attacked and failed: not a no-show
             } else {
                 hits.judge(cl.id(), "NOSHOW", false);
                 noShow(cl.mercId(), cl.id());

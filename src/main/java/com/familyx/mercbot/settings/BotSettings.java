@@ -98,7 +98,7 @@ public class BotSettings {
     }
 
     public int claimLockSeconds() {
-        return repo.get(CLAIM_LOCK_S, Integer.class).orElse(30);
+        return repo.get(CLAIM_LOCK_S, Integer.class).orElse(60);
     }
 
     public int maxClaims() {

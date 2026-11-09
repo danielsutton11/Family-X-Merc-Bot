@@ -65,7 +65,7 @@ public class ClaimSettingsHandler implements InteractionHandler {
                                     Long.toString(System.nanoTime() % 1_000_000_000L, 36)), "Claim settings")
                     .addComponents(
                             box("early", "Show-early window (minutes)", settings.claimShowEarlyMinutes(), "e.g. 2"),
-                            box("lock", "Claim lock (seconds)", settings.claimLockSeconds(), "e.g. 30"),
+                            box("lock", "Claim lock (seconds)", settings.claimLockSeconds(), "e.g. 60"),
                             box("max", "Max claims per merc", settings.maxClaims(), "e.g. 2"),
                             Label.of("No-show cooldown: in a row / minutes", TextInput.create("cooldown",
                                     TextInputStyle.SHORT).setRequired(true).setMaxLength(9).setPlaceholder("e.g. 2 / 10")

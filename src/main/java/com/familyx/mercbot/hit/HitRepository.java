@@ -20,7 +20,7 @@ public class HitRepository {
     public record Terms(BigDecimal factionCutPct, BigDecimal starterPct, BigDecimal claimerNoShowPct) { }
 
     /** A claim whose lock covered an attack. */
-    public record ClaimAt(long id, long mercId, String outcome) { }
+    public record ClaimAt(long id, long mercId, String outcome, boolean attempted) { }
 
     /** A share not yet told to its merc. */
     public record Unnotified(long shareId, long mercId, String role, long amount, long hitId, String ref,
@@ -98,13 +98,13 @@ public class HitRepository {
     /** The claim on this row whose lock covered the attack start (open, or already closed by the board). */
     public Optional<ClaimAt> claimCovering(long targetRowId, Instant started) {
         return jdbc.sql("""
-                        SELECT id, merc_id, outcome FROM claim
+                        SELECT id, merc_id, outcome, coalesce(claimer_joined, FALSE) FROM claim
                         WHERE contract_target_id = ? AND NOT judged
                           AND claimed_at <= ? AND (expires_at IS NULL OR expires_at >= ?)
                           AND (outcome IS NULL OR outcome IN ('EXPIRED', 'RELEASED'))
                         ORDER BY claimed_at DESC LIMIT 1""")
                 .params(targetRowId, ts(started), ts(started))
-                .query((rs, n) -> new ClaimAt(rs.getLong(1), rs.getLong(2), rs.getString(3))).optional();
+                .query((rs, n) -> new ClaimAt(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getBoolean(4))).optional();
     }
 
     /** Settles a claim: HIT (claimer took part) or NOSHOW. */
@@ -116,15 +116,36 @@ public class HitRepository {
     /** Expired claims whose lock ended before {@code before}: the attack log has been read past them. */
     public List<ClaimAt> expiredUnjudged(Instant before) {
         return jdbc.sql("""
-                        SELECT id, merc_id, outcome FROM claim
-                        WHERE outcome = 'EXPIRED' AND NOT judged AND expires_at < ?""")
-                .param(ts(before)).query((rs, n) -> new ClaimAt(rs.getLong(1), rs.getLong(2), rs.getString(3))).list();
+                        SELECT id, merc_id, outcome, coalesce(claimer_joined, FALSE) FROM claim
+                        WHERE outcome = 'EXPIRED' AND NOT judged AND NOT coalesce(claimer_joined, FALSE)
+                          AND expires_at < ?""")
+                .param(ts(before)).query((rs, n) -> new ClaimAt(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getBoolean(4))).list();
     }
 
-    /** Released claims with nothing matched: the target was hit by someone outside the service. */
+    /**
+     * Claims that are over with nothing to count against the claimer: released (the target was
+     * hit by someone outside the service), or expired after the claimer attacked and failed.
+     */
     public void settleReleased(Instant before) {
-        jdbc.sql("UPDATE claim SET judged = TRUE WHERE outcome = 'RELEASED' AND NOT judged AND expires_at < ?")
+        jdbc.sql("""
+                        UPDATE claim SET judged = TRUE WHERE NOT judged AND expires_at < ?
+                          AND (outcome = 'RELEASED' OR (outcome = 'EXPIRED' AND coalesce(claimer_joined, FALSE)))""")
                 .param(ts(before)).update();
+    }
+
+    /** Mercs holding a claim that isn't settled yet, to spot their attack attempts cheaply. */
+    public java.util.Set<Long> unjudgedClaimers() {
+        return new java.util.HashSet<>(jdbc.sql("SELECT DISTINCT merc_id FROM claim WHERE NOT judged")
+                .query(Long.class).list());
+    }
+
+    /** The claimer attacked their target during the lock (any result): they took part, so no no-show. */
+    public void markAttempt(long targetTornId, long mercId, Instant started) {
+        jdbc.sql("""
+                        UPDATE claim c SET claimer_joined = TRUE FROM contract_target ct
+                        WHERE ct.id = c.contract_target_id AND ct.target_torn_id = ? AND c.merc_id = ? AND NOT c.judged
+                          AND c.claimed_at <= ? AND (c.expires_at IS NULL OR c.expires_at >= ?)""")
+                .params(targetTornId, mercId, ts(started), ts(started)).update();
     }
 
     public void addNoShow(long mercId, long claimId) {

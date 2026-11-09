@@ -47,13 +47,13 @@ public class AttackPoller {
     @Scheduled(fixedDelay = 30_000, initialDelay = 45_000)
     public void tick() {
         Instant started = Instant.now();
-        boolean allRead = true;
+        boolean anyRead = false;
         Map<Long, TornAttack> combined = new java.util.LinkedHashMap<>();
         for (FamilyFaction f : factions.findActive()) {
             try {
                 poll(f.tornFactionId(), combined);
+                anyRead = true;
             } catch (Exception e) {
-                allRead = false;
                 Instant last = lastWarned.get(f.tornFactionId());
                 if (last == null || last.isBefore(started.minusSeconds(3600))) {
                     lastWarned.put(f.tornFactionId(), started);
@@ -65,8 +65,9 @@ public class AttackPoller {
         // Fights that only just ended wait a pass, so every faction's log has them; the overlap re-reads them.
         Instant settled = started.minusSeconds(20);
         hits.process(new java.util.ArrayList<>(combined.values()), settled);
-        if (allRead) {
-            // Every log has been read: claims whose lock ended more than a fight-length ago are settled.
+        if (anyRead) {
+            // Claims whose lock ended more than a fight-length ago are settled. A faction whose log can't be
+            // read (no leader key with faction access) doesn't hold everyone else's claims up.
             hits.judgeClaims(started.minusSeconds(300)); // a fight only shows in the log once it ends
         }
     }
