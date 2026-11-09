@@ -62,6 +62,49 @@ public class BotSettings {
         return repo.get("money.claimerNoShowPct", java.math.BigDecimal.class).orElse(java.math.BigDecimal.valueOf(100));
     }
 
+    // ---- claims (scope doc 5.4, 5.6, 7.7)
+
+    public static final String CLAIMS_ON = "claims.enabled";
+    public static final String CLAIM_SHOW_EARLY_MIN = "claims.showEarlyMinutes";
+    public static final String CLAIM_LOCK_S = "claims.lockSeconds";
+    public static final String CLAIM_MAX = "claims.maxPerMerc";
+    public static final String CLAIM_COOLDOWN_COUNT = "claims.cooldownNoShows";
+    public static final String CLAIM_COOLDOWN_MIN = "claims.cooldownMinutes";
+    public static final String CLAIM_ALERT_COUNT = "claims.alertNoShows";
+    public static final String CLAIM_ALERT_HOURS = "claims.alertHours";
+
+    public boolean claimsOn() {
+        return repo.get(CLAIMS_ON, Boolean.class).orElse(true);
+    }
+
+    public int claimShowEarlyMinutes() {
+        return repo.get(CLAIM_SHOW_EARLY_MIN, Integer.class).orElse(2);
+    }
+
+    public int claimLockSeconds() {
+        return repo.get(CLAIM_LOCK_S, Integer.class).orElse(30);
+    }
+
+    public int maxClaims() {
+        return repo.get(CLAIM_MAX, Integer.class).orElse(2);
+    }
+
+    public int claimCooldownNoShows() {
+        return repo.get(CLAIM_COOLDOWN_COUNT, Integer.class).orElse(2);
+    }
+
+    public int claimCooldownMinutes() {
+        return repo.get(CLAIM_COOLDOWN_MIN, Integer.class).orElse(10);
+    }
+
+    public int claimAlertNoShows() {
+        return repo.get(CLAIM_ALERT_COUNT, Integer.class).orElse(3);
+    }
+
+    public int claimAlertHours() {
+        return repo.get(CLAIM_ALERT_HOURS, Integer.class).orElse(24);
+    }
+
     public void set(String key, Object value, long changedBy) {
         repo.put(key, value, changedBy);
     }

@@ -54,6 +54,11 @@ public final class BoardRules {
         if (t.availableAt() != null && t.availableAt().isAfter(now)) {
             return Verdict.NOT_YET;
         }
+        return conditions(t, now);
+    }
+
+    /** The contract's conditions alone, ignoring hospital, jail and the war lock. */
+    static Verdict conditions(BoardTarget t, Instant now) {
         if (t.hasOverride()) {
             return Verdict.SHOW; // the requester allowed one hit despite the conditions
         }
@@ -77,6 +82,33 @@ public final class BoardRules {
             }
         }
         return Verdict.SHOW;
+    }
+
+    /** War lock after leaving hospital during a ranked war (scope doc 7.2). */
+    static final Duration WAR_LOCK = Duration.ofSeconds(60);
+
+    /**
+     * When the target can next be hit: out of hospital or jail (plus the war lock when their
+     * faction is in a ranked war), or now if they already can be.
+     */
+    public static Instant hittableAt(BoardTarget t, Instant now) {
+        if ("Hospital".equals(t.lastState()) || "Jail".equals(t.lastState())) {
+            Instant out = t.statusUntil() == null ? now : t.statusUntil();
+            return "Hospital".equals(t.lastState()) && t.inRankedWar() ? out.plus(WAR_LOCK) : out;
+        }
+        if (t.availableAt() != null && t.availableAt().isAfter(now)) {
+            return t.availableAt();
+        }
+        return now;
+    }
+
+    /**
+     * Claims' "show early" (scope doc 5.4): not hittable yet, but within {@code window} of being
+     * hittable and otherwise meeting the contract's conditions.
+     */
+    public static boolean showEarly(BoardTarget t, Instant now, Duration window) {
+        return verdict(t, now) == Verdict.NOT_YET && conditions(t, now) == Verdict.SHOW
+                && !hittableAt(t, now).isAfter(now.plus(window));
     }
 
     /** "Online now", or "Away 42m" / "Away 3h 5m" since the last action. */

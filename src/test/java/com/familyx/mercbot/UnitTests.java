@@ -259,4 +259,27 @@ class UnitTests {
         assertEquals(null, parse.apply("1561637 Dsuttz"));
         assertEquals(List.of(), parse.apply("  "));
     }
+
+    private static BoardTarget inHospital(Instant until, boolean revivable, boolean inWar,
+                                          com.familyx.mercbot.request.Conditions c, Instant now) {
+        return new BoardTarget(1, 1, "C-0001", "ACTIVE", 1, 0, now, true, "Foes", 10, Choices.Attack.HOSPITALIZE, c,
+                null, null, 42, "Target", 50, 7L, "Hospital", until, null, revivable, false,
+                now.minus(Duration.ofMinutes(45)), "Offline", null, false, null, 0, false, inWar, now);
+    }
+
+    @Test
+    void claimsShowTargetsEarly() {
+        Instant now = Instant.parse("2026-11-08T12:00:00Z");
+        var away30 = new com.familyx.mercbot.request.Conditions(Choices.Status.AWAY, 30, false, true);
+        Duration window = Duration.ofMinutes(2);
+        assertEquals(true, BoardRules.showEarly(inHospital(now.plusSeconds(90), false, false, away30, now), now, window));
+        assertEquals(false, BoardRules.showEarly(inHospital(now.plusSeconds(300), false, false, away30, now), now, window));
+        // Ranked war: 60 s lock after leaving hospital, so 90 s + 60 s is outside a 2 minute window.
+        assertEquals(now.plusSeconds(150), BoardRules.hittableAt(inHospital(now.plusSeconds(90), false, true, away30, now), now));
+        assertEquals(false, BoardRules.showEarly(inHospital(now.plusSeconds(90), false, true, away30, now), now, window));
+        // Still hidden by the contract's conditions (revivable, and this contract skips them).
+        assertEquals(false, BoardRules.showEarly(inHospital(now.plusSeconds(90), true, false, away30, now), now, window));
+        // Already hittable targets aren't "early".
+        assertEquals(false, BoardRules.showEarly(target("Okay", false, "Offline", 45, away30, now), now, window));
+    }
 }

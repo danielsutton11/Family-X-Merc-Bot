@@ -49,16 +49,27 @@ public class BoardService {
     public static final int MAX_ROWS = 10;
     private static final String ATTACK_URL = "https://www.torn.com/page.php?sid=attack&user2ID=";
 
-    /** One row as drawn on a board. */
-    public record Row(BoardTarget target, Long bsp) { }
+    /** Rows per board while claims are on: each row then needs its own button row (Discord's 40-part limit). */
+    public static final int MAX_ROWS_CLAIMS = 8;
+
+    /**
+     * One row as drawn on a board. {@code early}: shown before it's hittable so it can be
+     * claimed (Attack is greyed out); {@code claim}: who holds it, if anyone.
+     */
+    public record Row(BoardTarget target, Long bsp, boolean early, ClaimRepository.OpenClaim claim) { }
 
     /**
      * What a board shows: the top rows, every row in order (for the private pages), how many
      * more there are beyond the top, and why the rest are hidden.
      */
-    public record Board(Tier tier, List<Row> rows, List<Row> all, int more, Map<Verdict, Integer> hidden) {
+    public record Board(Tier tier, List<Row> rows, List<Row> all, int more, Map<Verdict, Integer> hidden,
+                        boolean claims) {
+        public int perPage() {
+            return claims ? MAX_ROWS_CLAIMS : MAX_ROWS;
+        }
+
         public int pages() {
-            return Math.max(1, (all.size() + MAX_ROWS - 1) / MAX_ROWS);
+            return Math.max(1, (all.size() + perPage() - 1) / perPage());
         }
     }
 
@@ -68,6 +79,10 @@ public class BoardService {
     private final MessageUpdater updater;
     private final PanelHashes hashes;
     private final PingService pings;
+    private final ClaimService claims;
+    private final com.familyx.mercbot.settings.BotSettings settings;
+    /** Open claims by target row, as of the last refresh. */
+    private volatile Map<Long, ClaimRepository.OpenClaim> openClaims = Map.of();
     /** Each target's verdict at the last refresh, to spot targets coming back. */
     private final Map<Long, Verdict> lastVerdict = new ConcurrentHashMap<>();
 
@@ -84,7 +99,10 @@ public class BoardService {
     private final Map<Long, OpenPage> openPages = new ConcurrentHashMap<>();
 
     public BoardService(TargetRepository targets, TierRepository tiers, BspService bsp, MessageUpdater updater,
-                        PanelHashes hashes, PingService pings) {
+                        PanelHashes hashes, PingService pings, ClaimService claims,
+                        com.familyx.mercbot.settings.BotSettings settings) {
+        this.claims = claims;
+        this.settings = settings;
         this.targets = targets;
         this.tiers = tiers;
         this.bsp = bsp;
@@ -97,6 +115,7 @@ public class BoardService {
     public synchronized void refresh() {
         Instant now = Instant.now();
         List<BoardTarget> running = targets.running();
+        openClaims = claims.sweep(running, now);
         Map<Integer, List<BoardTarget>> byTier = new HashMap<>();
         for (BoardTarget t : running) {
             byTier.computeIfAbsent(t.tierId(), k -> new ArrayList<>()).add(t);
@@ -135,25 +154,34 @@ public class BoardService {
 
     /** The board for one tier, from its running targets. */
     public Board build(Tier tier, List<BoardTarget> list, Instant now) {
+        boolean claimsOn = settings.claimsOn();
+        java.time.Duration window = java.time.Duration.ofMinutes(settings.claimShowEarlyMinutes());
         List<BoardTarget> shown = new ArrayList<>();
+        java.util.Set<Long> early = new java.util.HashSet<>();
         Map<Verdict, Integer> hidden = new EnumMap<>(Verdict.class);
         for (BoardTarget t : list) {
             Verdict v = BoardRules.verdict(t, now);
             if (v == Verdict.SHOW) {
                 shown.add(t);
+            } else if (claimsOn && BoardRules.showEarly(t, now, window)) {
+                shown.add(t); // coming out soon: claimable, Attack greyed out
+                early.add(t.id());
             } else if (v.hiddenByConditions()) {
                 hidden.merge(v, 1, Integer::sum);
             }
         }
         // Contract priority first, then the strongest targets (highest BSP estimate); no estimate goes last.
         Map<Long, Long> estimates = bsp.estimates(shown.stream().map(BoardTarget::tornId).toList());
-        List<Row> all = new ArrayList<>(shown.stream().map(t -> new Row(t, estimates.get(t.tornId()))).toList());
+        Map<Long, ClaimRepository.OpenClaim> held = claimsOn ? openClaims : Map.of();
+        List<Row> all = new ArrayList<>(shown.stream().map(t -> new Row(t, estimates.get(t.tornId()),
+                early.contains(t.id()), held.get(t.id()))).toList());
         all.sort(Comparator.comparingInt((Row r) -> r.target().priority()).reversed()
                 .thenComparing(Row::bsp, Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(r -> r.target().contractCreated(), Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(r -> r.target().name() == null ? "" : r.target().name().toLowerCase()));
-        List<Row> rows = all.subList(0, Math.min(MAX_ROWS, all.size()));
-        return new Board(tier, List.copyOf(rows), List.copyOf(all), all.size() - rows.size(), hidden);
+        int perPage = claimsOn ? MAX_ROWS_CLAIMS : MAX_ROWS;
+        List<Row> rows = all.subList(0, Math.min(perPage, all.size()));
+        return new Board(tier, List.copyOf(rows), List.copyOf(all), all.size() - rows.size(), hidden, claimsOn);
     }
 
     // ------------------------------------------------------------------ drawing
@@ -170,14 +198,14 @@ public class BoardService {
                 + (n == 0 ? "## " + Panels.tierIcon(tier) + "  No targets right now\n-# Targets appear here as soon as a "
                 + tier.name() + " contract has someone to hit."
                 : "## " + Panels.tierIcon(tier) + "  " + n + (n == 1 ? " target" : " targets") + " on the board\n"
-                + "-# Attack opens the target in Torn");
+                + (b.claims() ? "-# Claim reserves a target for you · Attack opens it in Torn"
+                : "-# Attack opens the target in Torn"));
         parts.add(TextDisplay.of(header));
         if (!b.rows().isEmpty()) {
             parts.add(Separator.createDivider(Separator.Spacing.SMALL));
             Instant now = Instant.now();
             for (Row r : b.rows()) {
-                parts.add(Section.of(Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗"),
-                        TextDisplay.of(rowText(tier, r, now))));
+                addRow(parts, b, r, now);
             }
         }
         String footer = footer(b);
@@ -192,6 +220,24 @@ public class BoardService {
         return List.of(Container.of(parts).withAccentColor(tier.colour()));
     }
 
+    /**
+     * One row: with claims on, the text then a button row (Claim, Attack); with claims off, the
+     * text with Attack beside it.
+     */
+    private static void addRow(List<ContainerChildComponent> parts, Board b, Row r, Instant now) {
+        Button attack = Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗");
+        if (!b.claims()) {
+            parts.add(Section.of(attack, TextDisplay.of(rowText(b.tier(), r, now))));
+            return;
+        }
+        parts.add(TextDisplay.of(rowText(b.tier(), r, now)));
+        Button claim = r.claim() == null
+                ? Button.primary(CustomId.of("claim", "take", r.target().id()), "Claim").withEmoji(Emoji.fromUnicode("🔒"))
+                : Button.secondary(CustomId.of("claim", "held", r.target().id()), ClaimService.name(r.claim()))
+                .withEmoji(Emoji.fromUnicode("🔒")).asDisabled();
+        parts.add(ActionRow.of(claim, r.early() ? attack.asDisabled() : attack));
+    }
+
     static String rowText(Tier tier, Row r, Instant now) {
         BoardTarget t = r.target();
         boolean gold = tier.requiresStricken();
@@ -204,7 +250,17 @@ public class BoardService {
         if (revivableOnGold) {
             hints.add("billed at Silver");
         }
-        hints.add(BoardRules.activity(t, now));
+        if (r.early()) {
+            String where = "Hospital".equals(t.lastState()) ? "🏥 " : "Jail".equals(t.lastState()) ? "⛓️ " : "⚔️ ";
+            hints.add(where + "hittable <t:" + BoardRules.hittableAt(t, now).getEpochSecond() + ":R>");
+        } else {
+            hints.add(BoardRules.activity(t, now));
+        }
+        if (r.claim() != null) {
+            ClaimRepository.OpenClaim c = r.claim();
+            hints.add("🔒 **" + ClaimService.name(c) + "** · " + (c.started(now)
+                    ? "releases <t:" + c.expiresAt().getEpochSecond() + ":R>" : "lock starts when hittable"));
+        }
         if (t.hasOverride()) {
             // Overrides on Gold always need Stricken, even on a revivable target.
             hints.add("📌 **Requester Override** (1 hit)");
@@ -289,9 +345,9 @@ public class BoardService {
     /** What a page shows, without its timestamp, to tell whether it needs re-drawing. */
     private static String pageText(Board b, int page, Instant asOf) {
         int p = Math.max(1, Math.min(page, b.pages()));
-        int from = (p - 1) * MAX_ROWS;
+        int from = (p - 1) * b.perPage();
         StringBuilder sb = new StringBuilder().append(p).append('/').append(b.pages()).append('/').append(b.all().size());
-        for (Row r : b.all().subList(Math.min(from, b.all().size()), Math.min(from + MAX_ROWS, b.all().size()))) {
+        for (Row r : b.all().subList(Math.min(from, b.all().size()), Math.min(from + b.perPage(), b.all().size()))) {
             sb.append('\n').append(rowText(b.tier(), r, asOf));
         }
         return sb.toString();
@@ -302,8 +358,8 @@ public class BoardService {
         Tier tier = b.tier();
         int pages = b.pages();
         int p = Math.max(1, Math.min(page, pages));
-        int from = (p - 1) * MAX_ROWS;
-        List<Row> rows = b.all().subList(Math.min(from, b.all().size()), Math.min(from + MAX_ROWS, b.all().size()));
+        int from = (p - 1) * b.perPage();
+        List<Row> rows = b.all().subList(Math.min(from, b.all().size()), Math.min(from + b.perPage(), b.all().size()));
         List<ContainerChildComponent> parts = new ArrayList<>();
         String header = "-# **" + tier.name().toUpperCase() + " CONTRACTS · PAGE " + p + " OF " + pages + "**\n"
                 + (rows.isEmpty() ? "### No targets on this page"
@@ -314,8 +370,7 @@ public class BoardService {
         if (!rows.isEmpty()) {
             parts.add(Separator.createDivider(Separator.Spacing.SMALL));
             for (Row r : rows) {
-                parts.add(Section.of(Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗"),
-                        TextDisplay.of(rowText(tier, r, asOf))));
+                addRow(parts, b, r, asOf);
             }
         }
         Button prev = Button.secondary(CustomId.of("board", "prev", tier.id(), p - 1), "Page " + (p - 1))
@@ -338,7 +393,7 @@ public class BoardService {
      * the layout change are replaced, because Discord can't switch an old message over.
      */
     public long ensureBoard(TextChannel channel, Tier tier) {
-        Board empty = new Board(tier, List.of(), List.of(), 0, Map.of());
+        Board empty = new Board(tier, List.of(), List.of(), 0, Map.of(), settings.claimsOn());
         if (tier.boardMessageId() != null) {
             try {
                 Message m = channel.retrieveMessageById(tier.boardMessageId()).complete();
