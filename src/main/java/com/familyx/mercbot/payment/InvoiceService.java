@@ -168,8 +168,7 @@ public class InvoiceService {
         }
         eb.addField("📅  Due", WHEN.format(inv.dueAt()) + " UTC\n-# within " + settings.paymentDueHours() + " h"
                         + Panels.GAP, true)
-                .addField("💸  How to pay", how + "\n-# Exact amounts are matched automatically. Message leaders from "
-                        + "your control panel if you can't pay it all at once.", false)
+                .addField("💸  How to pay", how + "\n-# Exact amounts are matched automatically.", false)
                 .addField("", preview.toString(), false);
         return eb.build();
     }
@@ -302,7 +301,7 @@ public class InvoiceService {
                 .setDescription("This invoice was due " + WHEN.format(inv.dueAt()) + " UTC. "
                         + (inv.payeeTornId() == null ? "A Capacity X leader will tell you who to pay"
                         : "[Start a trade with " + inv.payeeName() + " [" + inv.payeeTornId() + "]](" + TRADE
-                        + inv.payeeTornId() + ") in Torn and put it in") + ", or message leaders from your control panel.")
+                        + inv.payeeTornId() + ") in Torn and put it in") + ".")
                 .build()));
         Long card = null;
         if (withCard) {
