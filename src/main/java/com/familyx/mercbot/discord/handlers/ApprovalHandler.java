@@ -87,7 +87,7 @@ public class ApprovalHandler implements InteractionHandler {
                 .queue(done -> AutoDismiss.after(event.getHook(), AutoDismiss.SHORT));
     }
 
-    private void decide(long contractId, boolean approve, long leader, String reason, Message card) {
+    public void decide(long contractId, boolean approve, long leader, String reason, Message card) {
         Optional<Contract> found = contracts.find(contractId);
         if (found.isEmpty() || !contracts.decide(contractId, approve, leader, reason)) {
             if (card != null) {

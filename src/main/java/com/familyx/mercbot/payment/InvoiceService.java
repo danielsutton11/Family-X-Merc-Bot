@@ -240,7 +240,6 @@ public class InvoiceService {
                         .build(),
                 ActionRow.of(Button.success(CustomId.of("pay", "confirm", d.newsId()), "Confirm paid")
                                 .withEmoji(Emoji.fromUnicode("✅")),
-                        Button.secondary(CustomId.of("pay", "mark", inv.id()), "Mark paid…").withEmoji(Emoji.fromUnicode("✏️")),
                         Button.secondary(CustomId.of("pay", "other", d.newsId()), "Not this invoice")
                                 .withEmoji(Emoji.fromUnicode("✖️"))));
         invoices.linkDeposit(d.newsId(), inv.id(), card);

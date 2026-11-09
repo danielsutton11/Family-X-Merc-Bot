@@ -106,6 +106,43 @@ public class ContractRepository {
                 .param(requesterId).query(this::map).optional();
     }
 
+    // ------------------------------------------------------------------ leader panel → Contracts
+
+    /** Which contracts the leaders' list shows. */
+    public enum LeaderFilter {
+        LIVE("Live and paused", "status IN ('ACTIVE', 'PAUSED')"),
+        PENDING("Waiting for approval", "status = 'PENDING_APPROVAL'"),
+        ENDED("Ended (last 30 days)", "status IN ('COMPLETED', 'ENDED', 'CANCELLED', 'REJECTED') "
+                + "AND coalesce(ended_at, updated_at) > now() - interval '30 days'"),
+        UNPAID("Unpaid invoices", "id IN (SELECT contract_id FROM invoice WHERE status IN ('OPEN', 'PARTIAL'))"),
+        ALL("All", "status NOT IN ('QUOTED', 'EXPIRED')");
+
+        public final String label;
+        final String where;
+
+        LeaderFilter(String label, String where) {
+            this.label = label;
+            this.where = where;
+        }
+    }
+
+    public List<Contract> forLeaders(LeaderFilter f, int limit) {
+        return jdbc.sql("SELECT * FROM contract WHERE " + f.where + " ORDER BY priority DESC, created_at DESC LIMIT ?")
+                .param(limit).query(this::map).list();
+    }
+
+    public int countFor(LeaderFilter f) {
+        return jdbc.sql("SELECT count(*) FROM contract WHERE " + f.where).query(Integer.class).single();
+    }
+
+    public int countStatus(String status) {
+        return jdbc.sql("SELECT count(*) FROM contract WHERE status = ?").param(status).query(Integer.class).single();
+    }
+
+    public void setPriority(long id, int priority) {
+        jdbc.sql("UPDATE contract SET priority = ?, updated_at = now() WHERE id = ?").params(priority, id).update();
+    }
+
     /** The requester's most recent placed contracts, newest first (for the Repeat picker). */
     public List<Contract> recentFor(long requesterId, int limit) {
         return jdbc.sql("""

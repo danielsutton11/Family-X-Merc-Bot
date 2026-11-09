@@ -202,7 +202,7 @@ public class Panels {
 
         return new Panel(eb.build(), List.of(
                 ActionRow.of(
-                        Button.secondary(CustomId.of("soon", "3", "contracts"), "Contracts")
+                        Button.secondary(CustomId.of("lcon", "view"), "Contracts")
                                 .withEmoji(Emoji.fromUnicode("📋")),
                         Button.secondary(CustomId.of("soon", "4", "invoices-payouts"), "Invoices & payouts")
                                 .withEmoji(Emoji.fromUnicode("💰")),

@@ -143,6 +143,19 @@ public class ControlPanelService {
         }
     }
 
+    /** The same view for leaders: the panel's embed, with the priority and who the requester is. */
+    public net.dv8tion.jda.api.entities.MessageEmbed leaderView(Contract c, String priorityLabel) {
+        var embed = render(c).getEmbeds().get(0);
+        EmbedBuilder eb = new EmbedBuilder(embed);
+        eb.setAuthor(embed.getAuthor() == null ? c.ref() : embed.getAuthor().getName() + " · PRIORITY "
+                + priorityLabel.toUpperCase());
+        var r = requesters.requester(c.requesterId());
+        eb.addField("👤  Requester", r.map(x -> (x.name() == null ? "Player" : x.name()) + " [" + x.tornId() + "]")
+                .orElse("Unknown") + "\n-# " + (c.myFaction() ? "Faction request" : "Personal request") + " · placed "
+                + SHOW.format(c.createdAt()) + " UTC", false);
+        return eb.build();
+    }
+
     // ------------------------------------------------------------------ drawing
 
     MessageEditData render(Contract c) {
