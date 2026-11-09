@@ -193,31 +193,80 @@ public class RequestService {
     }
 
     /**
-     * Pre-selects Tier, Attack and Mode on step 1 from the scenario for the chosen target type,
-     * except any the requester has already picked themselves in this request.
+     * Pre-selects Tier, Attack and Mode on step 1 from the scenario, except any the requester has
+     * picked themselves in this request. Faction targets need {@code d.factionId} set first. When
+     * the scenario has no defaults, the options not picked by the requester are cleared.
      */
     public void applyStep1Defaults(Draft d) {
         if (d.forTarget == null || d.mercMe) {
             return;
         }
         Scenarios.War myWar = d.requesterFactionId == null ? null : torn.war(d.requesterFactionId).orElse(null);
-        Scenarios.Step1 s = Scenarios.step1(d.forTarget, myWar, java.time.Instant.now());
-        if (s == null) {
-            return;
-        }
+        Scenarios.War targetWar = d.factionId == null ? null : torn.war(d.factionId).orElse(null);
+        Scenarios.Step1 s = Scenarios.step1(new Scenarios.Situation(d.forTarget, false, d.factionId, myWar, targetWar,
+                d.attack, d.posture), java.time.Instant.now());
         if (!d.chosenInStep1.contains("tier")) {
             List<Tier> offered = offeredTiers();
-            Optional<Tier> want = s.gold()
+            Optional<Tier> want = s == null ? Optional.empty() : s.gold()
                     ? goldTier().filter(g -> offered.stream().anyMatch(t -> t.id() == g.id()))
                     : offered.stream().filter(t -> t.name().equalsIgnoreCase("Silver")).findFirst();
-            want.ifPresent(t -> d.tierId = t.id());
+            d.tierId = want.map(Tier::id).orElse(s == null ? null : d.tierId);
         }
         if (!d.chosenInStep1.contains("attack")) {
-            d.attack = s.attack();
+            d.attack = s == null ? null : s.attack();
         }
         if (!d.chosenInStep1.contains("mode")) {
-            d.mode = s.mode();
+            d.mode = s == null ? null : s.mode();
         }
+    }
+
+    /** Your faction's ranked war (scheduled or active), if any. */
+    public Optional<Scenarios.War> myWar(Draft d) {
+        return d.requesterFactionId == null ? Optional.empty() : torn.war(d.requesterFactionId);
+    }
+
+    private static final java.util.regex.Pattern FACTION_LINK_ID =
+            java.util.regex.Pattern.compile("(?i)[?&]ID=(\\d{1,10})");
+
+    /** A faction ID from an ID or a faction profile link; null if it's neither (so treat it as a name). */
+    public static Long parseFactionId(String raw) {
+        String s = raw == null ? "" : raw.trim();
+        java.util.regex.Matcher m = FACTION_LINK_ID.matcher(s);
+        if (s.toLowerCase().contains("factions.php") && m.find()) {
+            return Long.parseLong(m.group(1));
+        }
+        return s.matches("\\[?\\d{1,10}\\]?") ? Long.parseLong(s.replaceAll("[\\[\\]]", "")) : null;
+    }
+
+    /** Loads the target faction from an ID, a profile link or a name. Returns an error, or null. */
+    public String resolveFaction(Draft d, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "Enter the target faction's ID, profile link or name.";
+        }
+        Long id = parseFactionId(raw);
+        if (id != null) {
+            return loadFaction(d, id);
+        }
+        String name = raw.trim();
+        List<TornLookups.FactionMatch> found;
+        try {
+            found = torn.searchFactions(name);
+        } catch (Exception e) {
+            return "Torn's faction search didn't answer. Try the faction's ID or profile link instead.";
+        }
+        Optional<TornLookups.FactionMatch> exact = found.stream().filter(f -> f.name().equalsIgnoreCase(name)).findFirst();
+        if (exact.isPresent()) {
+            return loadFaction(d, exact.get().id());
+        }
+        if (found.size() == 1) {
+            return loadFaction(d, found.get(0).id());
+        }
+        if (found.isEmpty()) {
+            return "No faction called \"" + name + "\" was found. Try its ID or profile link.";
+        }
+        return "More than one faction matches \"" + name + "\": "
+                + found.stream().limit(5).map(f -> f.name() + " [" + f.id() + "]").collect(Collectors.joining(", "))
+                + ". Enter the ID of the one you mean.";
     }
 
     /** Merc me is always the Gold tier (the highest tier that needs Stricken). */

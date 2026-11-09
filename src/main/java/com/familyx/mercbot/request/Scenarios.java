@@ -56,18 +56,17 @@ public final class Scenarios {
     public record Step1(boolean gold, Attack attack, Mode mode) { }
 
     /**
-     * Step 1 defaults once the target type is picked. The target faction isn't known yet, so
-     * "Another Faction" assumes the war enemy when a war is scheduled (B) and E when there's no
-     * war. Returns null when there are no defaults (war against the enemy already active).
+     * Step 1 defaults for the situation (scope doc 4.3 table). Returns null when there are no
+     * defaults: a war against the enemy that's already active.
      */
-    public static Step1 step1(ForTarget forTarget, War myWar, Instant now) {
-        return switch (forTarget) {
-            case MY_FACTION_MINE, MY_FACTION_PLAYERS -> new Step1(true, Attack.HOSPITALIZE, Mode.DURATION); // A / D
-            case PERSONAL_PLAYERS -> new Step1(true, Attack.HOSPITALIZE, Mode.HITS); // C
-            case PERSONAL_FACTION -> new Step1(true, Attack.HOSPITALIZE, Mode.DURATION); // E
-            case MY_FACTION_OTHER -> myWar == null ? new Step1(true, Attack.HOSPITALIZE, Mode.DURATION) // E
-                    : myWar.active(now) ? null // enemy, war active: no defaults
-                    : new Step1(false, Attack.MUG, Mode.DURATION); // B
+    public static Step1 step1(Situation s, Instant now) {
+        return switch (pick(s, now)) {
+            case A, D, E -> new Step1(true, Attack.HOSPITALIZE, Mode.DURATION);
+            case B -> new Step1(false, Attack.MUG, Mode.DURATION);
+            case C, F -> new Step1(true, Attack.HOSPITALIZE, Mode.HITS);
+            case G -> s.posture() == Posture.OFFENSIVE ? new Step1(false, Attack.MUG, Mode.DURATION)
+                    : new Step1(true, Attack.HOSPITALIZE, Mode.DURATION);
+            default -> null;
         };
     }
 

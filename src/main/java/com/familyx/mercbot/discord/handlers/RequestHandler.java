@@ -77,6 +77,9 @@ public class RequestHandler implements InteractionHandler {
         this.contracts = contracts;
     }
 
+    private static final java.time.format.DateTimeFormatter SHOW_TIME =
+            java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm").withZone(ZoneOffset.UTC);
+
     @Override
     public String action() {
         return "req";
@@ -110,7 +113,13 @@ public class RequestHandler implements InteractionHandler {
             case "back1" -> withDraft(event, d -> {
                 d.mercMe = false;
                 d.repeatOfRef = null;
+                Long factionId = d.factionId; // the target faction was picked on the first screen
+                String factionName = d.factionName;
                 d.resetDetails();
+                if (d.forTarget != null && d.forTarget.kind == Kind.FACTION) {
+                    d.factionId = factionId;
+                    d.factionName = factionName;
+                }
                 step1(d, null).show(event);
             });
             case "go1" -> withDraft(event, d -> {
@@ -118,6 +127,12 @@ public class RequestHandler implements InteractionHandler {
                     who(d).show(event);
                     return;
                 }
+                if (d.forTarget.kind == Kind.FACTION) {
+                    event.replyModal(factionModal(d)).queue();
+                    return;
+                }
+                d.factionId = null;
+                d.factionName = null;
                 InteractionHook hook = Screen.deferInPlace(event); // the war check can take a moment
                 service.applyStep1Defaults(d);
                 step1(d, null).show(hook);
@@ -306,6 +321,15 @@ public class RequestHandler implements InteractionHandler {
         InteractionHook hook = Screen.deferInPlace(event);
         switch (id.sub()) {
             case "details" -> details(event, hook, d);
+            case "faction" -> {
+                String error = service.resolveFaction(d, text(event, "faction"));
+                if (error != null) {
+                    who(d, "❌ " + error).show(hook);
+                    return;
+                }
+                service.applyStep1Defaults(d);
+                step1(d, null).show(hook);
+            }
             case "awaymin" -> {
                 Integer minutes = intValue(event, "minutes");
                 if (minutes == null || minutes < 1 || minutes > 1440) {
@@ -346,6 +370,7 @@ public class RequestHandler implements InteractionHandler {
     }
 
     private void details(ModalInteractionEvent event, InteractionHook hook, Draft d) {
+        Long keptFactionId = d.forTarget.kind == Kind.FACTION ? d.factionId : null; // picked on the first screen
         d.resetDetails();
         d.notes = text(event, "notes");
         if (d.notes != null && d.notes.isBlank()) {
@@ -376,12 +401,11 @@ public class RequestHandler implements InteractionHandler {
                 showQuote(hook, d);
             }
             case FACTION -> {
-                Integer factionId = intValue(event, "faction");
-                if (factionId == null || factionId <= 0) {
-                    step1(d, "❌ Enter the target faction's ID (a number).").show(hook);
+                if (keptFactionId == null) {
+                    who(d, "❌ Pick the target faction again.").show(hook);
                     return;
                 }
-                error = service.loadFaction(d, factionId);
+                error = service.loadFaction(d, keptFactionId);
                 if (error != null) {
                     step1(d, "❌ " + error).show(hook);
                     return;
@@ -476,9 +500,13 @@ public class RequestHandler implements InteractionHandler {
      * opens step 1 with the scenario's defaults filled in.
      */
     private Screen who(Draft d) {
+        return who(d, null);
+    }
+
+    private Screen who(Draft d, String notice) {
         EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT")
                 .setTitle("⚔️  Who's this request for?")
-                .setDescription("**Personal request**: your own. Personal discounts apply.\n"
+                .setDescription((notice == null ? "" : notice + "\n\n") + "**Personal request**: your own. Personal discounts apply.\n"
                         + "**Faction request**: on behalf of your faction. Your faction's discount applies." + Panels.GAP);
         StringSelectMenu.Builder menu = StringSelectMenu.create(CustomId.of("req", "who")).setPlaceholder("Choose…")
                 .addOption("Personal request", "personal", null, Emoji.fromUnicode("👤"));
@@ -516,7 +544,9 @@ public class RequestHandler implements InteractionHandler {
         List<Tier> offered = service.offeredTiers();
         String forLine = (d.factionRequest
                 ? "For: **Faction request**" + (d.requesterFactionName == null ? "" : " (" + d.requesterFactionName + ")")
-                : "For: **Personal request**") + " · **" + d.forTarget.label + "**";
+                : "For: **Personal request**") + " · **" + d.forTarget.label + "**"
+                + (d.forTarget.kind == Kind.FACTION && d.factionId != null
+                ? "\nTarget: **" + d.factionName + "** [" + d.factionId + "]" + enemyNote(d) : "");
         EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT · STEP 1 OF 3")
                 .setTitle("⚔️  What do you need?")
                 .setDescription((notice == null ? "" : notice + "\n\n") + forLine + "\nDefaults for your situation are filled in. Change anything, then press Next."
@@ -560,9 +590,6 @@ public class RequestHandler implements InteractionHandler {
             rows.add(Label.of("Player IDs or profile links (up to 25)", TextInput.create("players", TextInputStyle.PARAGRAPH)
                     .setRequired(true).setPlaceholder("e.g. 1561637 or https://www.torn.com/profiles.php?XID=1561637")
                     .setMaxLength(2000).build()));
-        } else if (d.forTarget.kind == Kind.FACTION) {
-            rows.add(Label.of("Target faction ID", TextInput.create("faction", TextInputStyle.SHORT)
-                    .setRequired(true).setPlaceholder("e.g. 12345").setMaxLength(10).build()));
         }
         if (d.mode == Mode.HITS) {
             rows.add(Label.of("Hits per target", TextInput.create("hits", TextInputStyle.SHORT)
@@ -574,6 +601,31 @@ public class RequestHandler implements InteractionHandler {
         rows.add(Label.of("Notes for leaders (optional)", TextInput.create("notes", TextInputStyle.PARAGRAPH)
                 .setRequired(false).setMaxLength(500).build()));
         return Modal.create(CustomId.of("req", "details"), "Contract details").addComponents(rows).build();
+    }
+
+    /** The target faction box: ID, profile link or name, with your war enemy filled in on Faction requests. */
+    private Modal factionModal(Draft d) {
+        java.util.Optional<Scenarios.War> war = Boolean.TRUE.equals(d.factionRequest) ? service.myWar(d)
+                : java.util.Optional.empty();
+        TextInput.Builder input = TextInput.create("faction", TextInputStyle.SHORT).setRequired(true).setMaxLength(200)
+                .setPlaceholder("e.g. 29107, a factions.php link, or the name");
+        Modal.Builder modal = Modal.create(CustomId.of("req", "faction"), "Target faction");
+        if (war.isPresent()) {
+            Scenarios.War w = war.get();
+            input.setValue(Long.toString(w.opponentId()));
+            modal.addComponents(net.dv8tion.jda.api.components.textdisplay.TextDisplay.of(
+                    "Your war enemy **" + (w.opponentName() == null ? "Faction " + w.opponentId() : w.opponentName())
+                            + "** [" + w.opponentId() + "] is filled in. Replace it to target another faction."));
+        }
+        return modal.addComponents(Label.of("Faction ID, profile link or name", input.build())).build();
+    }
+
+    /** ", your war enemy (war starts …)" when the target faction is your war enemy. */
+    private String enemyNote(Draft d) {
+        return service.myWar(d).filter(w -> w.opponentId() == d.factionId)
+                .map(w -> " · your war enemy, " + (w.active(Instant.now()) ? "war active"
+                        : "war starts " + SHOW_TIME.format(w.start()) + " UTC"))
+                .orElse("");
     }
 
     /** The times box, filled in with {@code start}/{@code end}; labels say what the default is. */

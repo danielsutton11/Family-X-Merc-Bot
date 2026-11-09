@@ -65,6 +65,25 @@ public class TornLookups {
                 p.path("level").asInt(0), factionId, null, p.path("revivable").asBoolean(false));
     }
 
+    /** A faction found by name: its ID and name. */
+    public record FactionMatch(long id, String name) { }
+
+    /**
+     * Factions whose name matches {@code name} (Torn's /faction/search), up to 20, leaving out
+     * destroyed factions. Response: {"search": [{"id", "name", "is_destroyed", ...}], "_metadata": ...}.
+     */
+    public List<FactionMatch> searchFactions(String name) throws Exception {
+        JsonNode list = pool.call(Scope.any(), "/faction/search", Map.of("name", name, "limit", "20")).path("search");
+        List<FactionMatch> found = new java.util.ArrayList<>();
+        for (JsonNode f : list) {
+            if (f.path("is_destroyed").asBoolean(false) || !f.has("id") || !f.has("name")) {
+                continue;
+            }
+            found.add(new FactionMatch(f.path("id").asLong(), f.path("name").asText()));
+        }
+        return found;
+    }
+
     public Faction faction(long factionId) throws Exception {
         String name = pool.call(Scope.any(), "/faction/" + factionId + "/basic", Map.of())
                 .path("basic").path("name").asText("Faction " + factionId);
