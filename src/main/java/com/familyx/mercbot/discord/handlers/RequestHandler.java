@@ -600,7 +600,15 @@ public class RequestHandler implements InteractionHandler {
         }
         rows.add(Label.of("Notes for leaders (optional)", TextInput.create("notes", TextInputStyle.PARAGRAPH)
                 .setRequired(false).setMaxLength(500).build()));
-        return Modal.create(CustomId.of("req", "details"), "Contract details").addComponents(rows).build();
+        return Modal.create(CustomId.of("req", "details", fresh()), "Contract details").addComponents(rows).build();
+    }
+
+    /**
+     * A one-off part for a box's id. Discord's app re-fills a box with whatever was typed the last
+     * time a box with the same id was open, over the bot's defaults; a new id each time stops that.
+     */
+    private static String fresh() {
+        return Long.toString(System.nanoTime() % 1_000_000_000L, 36);
     }
 
     /** The target faction box: ID, profile link or name, with your war enemy filled in on Faction requests. */
@@ -609,7 +617,7 @@ public class RequestHandler implements InteractionHandler {
                 : java.util.Optional.empty();
         TextInput.Builder input = TextInput.create("faction", TextInputStyle.SHORT).setRequired(true).setMaxLength(200)
                 .setPlaceholder("e.g. 29107, a factions.php link, or the name");
-        Modal.Builder modal = Modal.create(CustomId.of("req", "faction"), "Target faction");
+        Modal.Builder modal = Modal.create(CustomId.of("req", "faction", fresh()), "Target faction");
         if (war.isPresent()) {
             Scenarios.War w = war.get();
             input.setValue(Long.toString(w.opponentId()));
@@ -630,7 +638,7 @@ public class RequestHandler implements InteractionHandler {
 
     /** The times box, filled in with {@code start}/{@code end}; labels say what the default is. */
     private Modal timesModal(Instant start, Instant end, Scenarios.Defaults preview, String then) {
-        return Modal.create(CustomId.of("req", "timesubmit", then), "Contract times")
+        return Modal.create(CustomId.of("req", "timesubmit", then, fresh()), "Contract times")
                 .addComponents(startInput(start, preview), endInput(end, preview))
                 .build();
     }
@@ -651,14 +659,14 @@ public class RequestHandler implements InteractionHandler {
     private static Modal awayModal(Draft d) {
         int current = d.conditions != null && d.conditions.status() == Status.AWAY
                 ? d.conditions.awayMinutes() : Conditions.DEFAULT_AWAY_MINUTES;
-        return Modal.create(CustomId.of("req", "awaymin"), "Idle or offline for how long?")
+        return Modal.create(CustomId.of("req", "awaymin", fresh()), "Idle or offline for how long?")
                 .addComponents(Label.of("Minutes since their last action", TextInput.create("minutes", TextInputStyle.SHORT).setRequired(true).setMaxLength(4)
                         .setValue(Integer.toString(current)).build()))
                 .build();
     }
 
     private Modal hitsModal(Draft d) {
-        return Modal.create(CustomId.of("req", "hitssubmit"), "Change hits")
+        return Modal.create(CustomId.of("req", "hitssubmit", fresh()), "Change hits")
                 .addComponents(Label.of("Hits per target", TextInput.create("hits", TextInputStyle.SHORT)
                         .setRequired(true).setMaxLength(3).setValue(Integer.toString(d.hits)).build()))
                 .build();
