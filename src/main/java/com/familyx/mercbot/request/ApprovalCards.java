@@ -51,9 +51,9 @@ public class ApprovalCards {
                 .addField("🎯  Targets", targets + Panels.GAP, true)
                 .addField(Panels.tierIcon(q.tier()) + "  Tier", q.tier().name() + "\n-# " + c.attack().label + Panels.GAP, true)
                 .addField("💰  Price", price + Panels.GAP, true)
-                .addField("🎛️  Conditions", "Status: **" + c.conditions().statusLabel() + "** · Revivable: **"
+                .addField("🎛️  Conditions", "Status: **" + c.conditions().statusLabel() + "**\nRevivable: **"
                         + (c.conditions().allowRevivable() ? "Hit" : "Don't hit") + "**"
-                        + (c.attack() == Choices.Attack.HOSPITALIZE ? " · Early discharge: **"
+                        + (c.attack() == Choices.Attack.HOSPITALIZE ? "\nEarly discharge: **"
                         + (c.conditions().allowEarlyDischarge() ? "Hit" : "Skip") + "**" : ""), false);
         if (c.notes() != null && !c.notes().isBlank()) {
             eb.addField("📝  Notes", c.notes(), false);

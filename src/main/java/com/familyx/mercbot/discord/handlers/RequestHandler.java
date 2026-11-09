@@ -791,9 +791,9 @@ public class RequestHandler implements InteractionHandler {
         if (!d.mercMe) {
             String conds = needsConditions
                     ? "⚠️ Your faction's war is active, so there are no defaults. Press **Change conditions** and pick each one."
-                    : "Status: **" + d.conditions.statusLabel() + "** · Revivable: **"
+                    : "Status: **" + d.conditions.statusLabel() + "**\nRevivable: **"
                     + (d.conditions.allowRevivable() ? "Hit" : "Don't hit") + "**"
-                    + (d.attack == Attack.HOSPITALIZE ? " · Early discharge: **"
+                    + (d.attack == Attack.HOSPITALIZE ? "\nEarly discharge: **"
                     + (d.conditions.allowEarlyDischarge() ? "Hit" : "Skip") + "**" : "");
             if (!needsConditions && q.silverPerHit() != null) {
                 conds += "\n-# Revivable targets are billed at Silver (" + Money.shortForm(q.silverPerHit()) + ").";
@@ -894,7 +894,7 @@ public class RequestHandler implements InteractionHandler {
                 : Button.secondary(CustomId.of("req", "hits"), "Change hits").withEmoji(Emoji.fromUnicode("🔢")));
         if (c != null && c.status() == Status.AWAY) {
             // Picking the already-selected status again doesn't reach the bot, so minutes get their own button.
-            buttons.add(Button.secondary(CustomId.of("req", "awaybtn"), "Change minutes").withEmoji(Emoji.fromUnicode("⏳")));
+            buttons.add(Button.secondary(CustomId.of("req", "awaybtn"), "Change idle mins").withEmoji(Emoji.fromUnicode("⏳")));
         }
         buttons.add(Button.primary(CustomId.of("req", "quote"), "Back to quote").withEmoji(Emoji.fromUnicode("⬅️")));
         rows.add(ActionRow.of(buttons));

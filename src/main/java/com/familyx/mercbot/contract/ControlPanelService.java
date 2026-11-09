@@ -237,9 +237,9 @@ public class ControlPanelService {
 
         if (!c.mercMe()) {
             Conditions k = c.conditions();
-            eb.addField("🎛️  Conditions", "Status: **" + k.statusLabel() + "** · Revivable: **"
+            eb.addField("🎛️  Conditions", "Status: **" + k.statusLabel() + "**\nRevivable: **"
                     + (k.allowRevivable() ? "Hit" : "Don't hit") + "**"
-                    + (c.attack() == Attack.HOSPITALIZE ? " · Early discharge: **"
+                    + (c.attack() == Attack.HOSPITALIZE ? "\nEarly discharge: **"
                     + (k.allowEarlyDischarge() ? "Hit" : "Skip") + "**" : ""), false);
         }
         if (c.notes() != null && !c.notes().isBlank()) {

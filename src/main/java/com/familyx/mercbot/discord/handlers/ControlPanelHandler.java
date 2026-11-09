@@ -328,7 +328,7 @@ public class ControlPanelHandler implements InteractionHandler {
         }
         List<Button> buttons = new ArrayList<>();
         if (!c.mercMe() && k.status() == Status.AWAY) {
-            buttons.add(Button.secondary(CustomId.of("cp", "minutes", c.id()), "Change minutes").withEmoji(Emoji.fromUnicode("⏳")));
+            buttons.add(Button.secondary(CustomId.of("cp", "minutes", c.id()), "Change idle mins").withEmoji(Emoji.fromUnicode("⏳")));
         }
         buttons.add(c.mode() == Mode.HITS
                 ? Button.secondary(CustomId.of("cp", "hits", c.id()), "Change hits").withEmoji(Emoji.fromUnicode("🔢"))
