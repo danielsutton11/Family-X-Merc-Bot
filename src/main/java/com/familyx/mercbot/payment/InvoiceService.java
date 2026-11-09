@@ -150,7 +150,8 @@ public class InvoiceService {
         String how = inv.payeeTornId() == null
                 ? "A Capacity X leader will tell you who to pay."
                 : "Start a trade with **" + inv.payeeName() + " [" + inv.payeeTornId() + "]** using the button below "
-                + "and put **exactly " + Money.full(inv.total()) + "** in it.";
+                + "and put **exactly " + Money.full(inv.total()) + "** in it.\n**Put `" + c.ref()
+                + "` in the trade description** so we know which contract it's for.";
         StringBuilder preview = new StringBuilder("```\n");
         lines.stream().limit(LINES_SHOWN).forEach(l -> preview.append(line(l)).append('\n'));
         if (lines.size() > LINES_SHOWN) {
@@ -213,7 +214,17 @@ public class InvoiceService {
     /** A deposit into the mercs pool appeared in faction news: card for leaders if it matches an invoice. */
     public void depositSpotted(Deposit d) {
         List<Invoice> matches = invoices.openWithDue(d.amount());
+        String when = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC).format(d.at()) + " UTC";
         if (matches.isEmpty()) {
+            unmatched(d.newsId(), d.amount(), "By " + d.actorName() + " at " + when + ".");
+            return;
+        }
+        if (matches.size() > 1) {
+            // Several invoices are for exactly this amount: the trade description says which.
+            Card card = pickCard(d.newsId(), d.amount(), matches, "PAYMENT SPOTTED",
+                    "By " + d.actorName() + " at " + when + ". " + matches.size()
+                            + " open invoices are for exactly this amount. Pick the one in the trade description.");
+            invoices.linkDeposit(d.newsId(), null, postCard(card.embed(), card.rows()));
             return;
         }
         Invoice inv = matches.get(0);
@@ -224,17 +235,64 @@ public class InvoiceService {
         Long card = postCard(new EmbedBuilder().setColor(Panels.LEADER).setAuthor("PAYMENT SPOTTED")
                         .setTitle("💰  " + c.ref() + " · " + Money.full(d.amount()))
                         .setDescription(d.actorName() + " added **" + Money.full(d.amount()) + "** to **"
-                                + settings.poolAccountName() + "** at " + DateTimeFormatter.ofPattern("HH:mm")
-                                .withZone(ZoneOffset.UTC).format(d.at()) + " UTC. That matches " + c.ref()
-                                + "'s invoice exactly." + (matches.size() > 1 ? "\n-# " + (matches.size() - 1)
-                                + " other open invoice(s) have the same amount; this is the oldest." : ""))
+                                + settings.poolAccountName() + "** at " + when + ". That matches " + c.ref()
+                                + "'s invoice exactly.")
                         .build(),
                 ActionRow.of(Button.success(CustomId.of("pay", "confirm", d.newsId()), "Confirm paid")
                                 .withEmoji(Emoji.fromUnicode("✅")),
                         Button.secondary(CustomId.of("pay", "mark", inv.id()), "Mark paid…").withEmoji(Emoji.fromUnicode("✏️")),
-                        Button.secondary(CustomId.of("pay", "not", d.newsId()), "Not this invoice")
+                        Button.secondary(CustomId.of("pay", "other", d.newsId()), "Not this invoice")
                                 .withEmoji(Emoji.fromUnicode("✖️"))));
         invoices.linkDeposit(d.newsId(), inv.id(), card);
+    }
+
+    /** A card's look: the embed and its rows. */
+    public record Card(MessageEmbed embed, ActionRow[] rows) { }
+
+    /**
+     * A deposit that doesn't exactly match any invoice (a part payment, or a mix): a card where a
+     * Capacity X leader picks the contract it's for (the requester puts the reference in the trade).
+     */
+    private void unmatched(String newsId, long amount, String by) {
+        Card card = otherInvoices(newsId, amount, by);
+        if (card != null) {
+            invoices.linkDeposit(newsId, null, postCard(card.embed(), card.rows()));
+        }
+    }
+
+    /** The "pick the contract" card over every open invoice; null when nothing is owed. */
+    public Card otherInvoices(String newsId, long amount, String by) {
+        List<Invoice> open = invoices.open(25);
+        if (open.isEmpty()) {
+            return null; // nothing is owed, so it isn't an invoice payment
+        }
+        return pickCard(newsId, amount, open, "DEPOSIT TO MATCH", (by == null ? "" : by + " ")
+                + "It doesn't match an open invoice exactly. Pick the contract it's for: the requester was asked "
+                + "to put the reference in the trade description.");
+    }
+
+    private Card pickCard(String newsId, long amount, List<Invoice> list, String author, String text) {
+        net.dv8tion.jda.api.components.selections.StringSelectMenu.Builder pick =
+                net.dv8tion.jda.api.components.selections.StringSelectMenu.create(CustomId.of("pay", "pick", newsId))
+                        .setPlaceholder("Pick the contract it's for…");
+        for (Invoice inv : list) {
+            contracts.find(inv.contractId()).ifPresent(c -> pick.addOption(
+                    trim(c.ref() + " · " + feed.targetName(c, contracts.targetCount(c.id())), 100),
+                    Long.toString(inv.id()),
+                    trim(Money.full(inv.due()) + " due" + ("PARTIAL".equals(inv.status()) ? " (part paid)" : "")
+                            + " · since " + WHEN.format(inv.createdAt()) + " UTC", 100),
+                    Emoji.fromUnicode("🧾")));
+        }
+        return new Card(new EmbedBuilder().setColor(Panels.LEADER).setAuthor(author)
+                .setTitle("💰  " + Money.full(amount) + " added to " + settings.poolAccountName())
+                .setDescription(text).build(),
+                new ActionRow[] {ActionRow.of(pick.build()),
+                        ActionRow.of(Button.secondary(CustomId.of("pay", "not", newsId), "Not an invoice payment")
+                                .withEmoji(Emoji.fromUnicode("✖️")))});
+    }
+
+    private static String trim(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 
     /** Records a payment (from a spotted deposit or typed in by a leader). */
@@ -322,14 +380,14 @@ public class InvoiceService {
 
     // ------------------------------------------------------------------ helpers
 
-    private Long postCard(MessageEmbed embed, ActionRow row) {
+    private Long postCard(MessageEmbed embed, ActionRow... rows) {
         JDA api = jda.getIfAvailable();
         TextChannel ch = api == null ? null : layout.get(Layout.CH_LEADERS).map(api::getTextChannelById).orElse(null);
         if (ch == null) {
             return null;
         }
         try {
-            return ch.sendMessageEmbeds(embed).setComponents(row).complete().getIdLong();
+            return ch.sendMessageEmbeds(embed).setComponents(rows).complete().getIdLong();
         } catch (Exception e) {
             log.warn("Couldn't post a card in the leaders channel: {}", e.getMessage());
             return null;

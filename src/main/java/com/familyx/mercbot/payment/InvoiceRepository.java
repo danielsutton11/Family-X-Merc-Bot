@@ -88,6 +88,12 @@ public class InvoiceRepository {
                 .param(amount).query(this::map).list();
     }
 
+    /** Every open or part-paid invoice, oldest first (for matching a deposit by hand). */
+    public List<Invoice> open(int limit) {
+        return jdbc.sql("SELECT * FROM invoice WHERE status IN ('OPEN', 'PARTIAL') ORDER BY created_at LIMIT ?")
+                .param(limit).query(this::map).list();
+    }
+
     public List<Invoice> overdueUnreminded() {
         return jdbc.sql("""
                         SELECT * FROM invoice WHERE status IN ('OPEN', 'PARTIAL') AND due_at < now()
@@ -172,7 +178,7 @@ public class InvoiceRepository {
                 .update() == 1;
     }
 
-    public void linkDeposit(String newsId, long invoiceId, Long cardId) {
+    public void linkDeposit(String newsId, Long invoiceId, Long cardId) {
         jdbc.sql("UPDATE faction_news_seen SET invoice_id = ?, card_message_id = ? WHERE news_id = ?")
                 .params(invoiceId, cardId, newsId).update();
     }

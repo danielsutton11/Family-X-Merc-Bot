@@ -89,13 +89,29 @@ public class PaymentHandler implements InteractionHandler {
                                 + Money.full(inv.due()) + " still due."))
                         .queue(h -> AutoDismiss.after(event.getHook(), AutoDismiss.SHORT));
             }
+            case "other" -> {
+                // The exact match was for a different contract: offer every open invoice instead.
+                String newsId = id.arg(0);
+                var dep = invoices.deposit(newsId).orElse(null);
+                if (dep == null || dep.outcome() != null) {
+                    done(event, "This payment has already been handled.");
+                    return;
+                }
+                InvoiceService.Card card = service.otherInvoices(newsId, dep.amount(), null);
+                if (card == null) {
+                    done(event, "There are no other open invoices.");
+                    return;
+                }
+                invoices.linkDeposit(newsId, null, event.getMessage().getIdLong());
+                event.editMessageEmbeds(card.embed()).setComponents(card.rows()).queue();
+            }
             case "not" -> {
                 String newsId = id.arg(0);
                 invoices.depositOutcome(newsId, "SET_ASIDE");
                 audit.log(user, "PAYMENT_SET_ASIDE", "news:" + newsId, null, null,
                         "Set aside a deposit that matched an invoice amount");
                 event.getMessage().delete().queue(null, ignored -> { });
-                done(event, "Set aside. Use Mark paid… on the invoice if the money arrives another way.");
+                done(event, "Set aside: not counted against any invoice.");
             }
             case "mark" -> {
                 long invoiceId = id.longArg(0);
@@ -127,6 +143,37 @@ public class PaymentHandler implements InteractionHandler {
             }
             default -> done(event, "Unknown option.");
         }
+    }
+
+    /** A Capacity X leader picked which contract an unmatched deposit is for. */
+    @Override
+    public void stringSelect(net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent event,
+                             CustomId id) {
+        if (!capXLeader(event)) {
+            return;
+        }
+        String newsId = id.arg(0);
+        var dep = invoices.deposit(newsId).orElse(null);
+        if (dep == null || dep.outcome() != null) {
+            event.reply("This deposit has already been handled.").setEphemeral(true)
+                    .queue(h -> AutoDismiss.after(h, AutoDismiss.SHORT));
+            return;
+        }
+        long invoiceId = Long.parseLong(event.getValues().getFirst());
+        Optional<Invoice> before = invoices.find(invoiceId);
+        if (before.isEmpty() || "PAID".equals(before.get().status())) {
+            event.reply("That invoice is already paid. Pick another.").setEphemeral(true)
+                    .queue(h -> AutoDismiss.after(h, AutoDismiss.SHORT));
+            return;
+        }
+        event.deferReply(true).queue();
+        invoices.depositOutcome(newsId, "CONFIRMED");
+        invoices.linkDeposit(newsId, invoiceId, dep.cardId());
+        Invoice inv = service.pay(invoiceId, dep.amount(), newsId, event.getUser().getIdLong());
+        event.getMessage().delete().queue(null, ignored -> { });
+        event.getHook().editOriginal("✅ Recorded " + Money.full(dep.amount()) + " against " + ref(inv) + ". "
+                        + ("PAID".equals(inv.status()) ? "It's paid in full." : Money.full(inv.due()) + " still due."))
+                .queue(h -> AutoDismiss.after(event.getHook(), AutoDismiss.SHORT));
     }
 
     @Override
