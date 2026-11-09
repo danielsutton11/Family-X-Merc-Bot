@@ -40,7 +40,7 @@ public class SettingsHandler implements InteractionHandler {
                         .build(),
                 ActionRow.of(
                         Button.primary(CustomId.of("factions", "view"), "Factions").withEmoji(Emoji.fromUnicode("🏰")),
-                        Button.secondary(CustomId.of("soon", "3", "requests"), "Requests").asDisabled(),
+                        Button.primary(CustomId.of("reqdef", "view"), "Requests").withEmoji(Emoji.fromUnicode("📝")),
                         Button.primary(CustomId.of("tiers", "view"), "Tiers").withEmoji(Emoji.fromUnicode("🏷️")),
                         Button.secondary(CustomId.of("soon", "3", "boards"), "Boards").asDisabled()),
                 ActionRow.of(

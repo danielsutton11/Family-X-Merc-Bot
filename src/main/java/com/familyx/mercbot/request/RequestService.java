@@ -204,10 +204,12 @@ public class RequestService {
         Scenarios.War myWar = d.requesterFactionId == null ? null : torn.war(d.requesterFactionId).orElse(null);
         Scenarios.War targetWar = d.factionId == null ? null : torn.war(d.factionId).orElse(null);
         Scenarios.Step1 s = Scenarios.step1(new Scenarios.Situation(d.forTarget, false, d.factionId, myWar, targetWar,
-                d.attack, d.posture), java.time.Instant.now());
+                d.attack, d.posture), java.time.Instant.now(), settings::requestDefaults);
         if (!d.chosenInStep1.contains("tier")) {
             List<Tier> offered = offeredTiers();
-            Optional<Tier> want = s == null ? Optional.empty() : s.gold()
+            Optional<Tier> chosen = s == null || s.tierId() == null ? Optional.empty()
+                    : offered.stream().filter(t -> t.id() == s.tierId()).findFirst();
+            Optional<Tier> want = s == null ? Optional.empty() : chosen.isPresent() ? chosen : s.gold()
                     ? goldTier().filter(g -> offered.stream().anyMatch(t -> t.id() == g.id()))
                     : offered.stream().filter(t -> t.name().equalsIgnoreCase("Silver")).findFirst();
             d.tierId = want.map(Tier::id).orElse(s == null ? null : d.tierId);
@@ -393,7 +395,7 @@ public class RequestService {
             return new QuoteResult.ConfirmNoWar(d.requesterFactionName == null ? "Your faction" : d.requesterFactionName);
         }
         if (d.quotedAt == null || d.scenario == null) {
-            Scenarios.Defaults defaults = Scenarios.defaults(situation, now);
+            Scenarios.Defaults defaults = Scenarios.defaults(situation, now, settings::requestDefaults);
             d.scenario = defaults.scenario();
             if (d.conditions == null) {
                 d.conditions = defaults.conditions();
@@ -450,7 +452,7 @@ public class RequestService {
         Scenarios.War myWar = d.requesterFactionId == null ? null : torn.war(d.requesterFactionId).orElse(null);
         Scenarios.War targetWar = d.factionId == null || d.mercMe ? null : torn.war(d.factionId).orElse(null);
         return Scenarios.defaults(new Scenarios.Situation(d.mercMe ? null : d.forTarget, d.mercMe, d.factionId, myWar,
-                targetWar, d.attack, d.posture), Instant.now());
+                targetWar, d.attack, d.posture), Instant.now(), settings::requestDefaults);
     }
 
     private String factionLabel(long factionId) {

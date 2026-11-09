@@ -62,6 +62,22 @@ public class BotSettings {
         return repo.get("money.claimerNoShowPct", java.math.BigDecimal.class).orElse(java.math.BigDecimal.valueOf(100));
     }
 
+    // ---- request defaults (scope doc 4.3; Settings → Requests)
+
+    public static String requestDefaultsKey(com.familyx.mercbot.request.Scenarios.Key k) {
+        return "requests.defaults." + k.name();
+    }
+
+    /** A scenario's defaults as leaders set them, or the scope doc's when never changed. */
+    public com.familyx.mercbot.request.Scenarios.Entry requestDefaults(com.familyx.mercbot.request.Scenarios.Key k) {
+        try {
+            return repo.get(requestDefaultsKey(k), com.familyx.mercbot.request.Scenarios.Entry.class)
+                    .orElseGet(() -> com.familyx.mercbot.request.Scenarios.scope(k));
+        } catch (RuntimeException e) {
+            return com.familyx.mercbot.request.Scenarios.scope(k); // unreadable: fall back rather than break requests
+        }
+    }
+
     // ---- claims (scope doc 5.4, 5.6, 7.7)
 
     public static final String CLAIMS_ON = "claims.enabled";

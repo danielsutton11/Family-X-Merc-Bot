@@ -100,7 +100,8 @@ public class RequestHandler implements InteractionHandler {
                     // faction, whose war status needs its ID first).
                     Scenarios.Defaults preview = d.mode == Mode.DURATION && d.forTarget.kind != Kind.FACTION
                             ? service.previewDefaults(d) : null;
-                    event.replyModal(detailsModal(d, preview)).queue();
+                    int hits = d.mode == Mode.HITS ? service.previewDefaults(d).hits() : 1;
+                    event.replyModal(detailsModal(d, preview, hits)).queue();
                 }
             });
             case "cancel" -> {
@@ -584,7 +585,7 @@ public class RequestHandler implements InteractionHandler {
                         d.step1Complete() ? next : next.asDisabled()));
     }
 
-    private Modal detailsModal(Draft d, Scenarios.Defaults preview) {
+    private Modal detailsModal(Draft d, Scenarios.Defaults preview, int hitsDefault) {
         List<Label> rows = new ArrayList<>();
         if (d.forTarget.kind == Kind.PLAYERS) {
             rows.add(Label.of("Player IDs or profile links (up to 25)", TextInput.create("players", TextInputStyle.PARAGRAPH)
@@ -593,7 +594,7 @@ public class RequestHandler implements InteractionHandler {
         }
         if (d.mode == Mode.HITS) {
             rows.add(Label.of("Hits per target", TextInput.create("hits", TextInputStyle.SHORT)
-                    .setRequired(true).setValue("1").setMaxLength(3).build()));
+                    .setRequired(true).setValue(Integer.toString(hitsDefault)).setMaxLength(3).build()));
         } else if (preview != null) {
             rows.add(startInput(preview.start(), preview));
             rows.add(endInput(preview.end(), preview));
