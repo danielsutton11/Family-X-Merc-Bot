@@ -18,7 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Reads each family faction's attack log every 30 s (scope doc 10.4) with that faction's leader
- * key, and hands the new rows to {@link HitService}. Each faction keeps a cursor in settings, so
+ * key, combines every faction's rows (a joiner from another family faction only shows in their own
+ * faction's log), and hands them to {@link HitService}. Each faction keeps a cursor in settings, so
  * a redeploy picks up where it left off; it re-reads a few minutes back because a fight only
  * shows once it ends, and already-recorded attacks are skipped.
  */
@@ -47,9 +48,10 @@ public class AttackPoller {
     public void tick() {
         Instant started = Instant.now();
         boolean allRead = true;
+        Map<Long, TornAttack> combined = new java.util.LinkedHashMap<>();
         for (FamilyFaction f : factions.findActive()) {
             try {
-                poll(f.tornFactionId());
+                poll(f.tornFactionId(), combined);
             } catch (Exception e) {
                 allRead = false;
                 Instant last = lastWarned.get(f.tornFactionId());
@@ -60,13 +62,16 @@ public class AttackPoller {
                 }
             }
         }
+        // Fights that only just ended wait a pass, so every faction's log has them; the overlap re-reads them.
+        Instant settled = started.minusSeconds(20);
+        hits.process(new java.util.ArrayList<>(combined.values()), settled);
         if (allRead) {
             // Every log has been read: claims whose lock ended more than a fight-length ago are settled.
             hits.judgeClaims(started.minusSeconds(300)); // a fight only shows in the log once it ends
         }
     }
 
-    private void poll(long factionId) throws Exception {
+    private void poll(long factionId, Map<Long, TornAttack> combined) throws Exception {
         String key = "attacks.cursor." + factionId;
         long cursor = settings.get(key, Long.class).orElse(Instant.now().getEpochSecond() - 120);
         long from = Math.max(0, cursor - OVERLAP_S);
@@ -78,7 +83,7 @@ public class AttackPoller {
             if (batch.isEmpty()) {
                 break;
             }
-            hits.process(batch);
+            batch.forEach(a -> combined.putIfAbsent(a.id(), a));
             long last = batch.stream().mapToLong(a -> a.started().getEpochSecond()).max().orElse(from);
             newest = Math.max(newest, last);
             if (batch.size() < PAGE || last <= from) {

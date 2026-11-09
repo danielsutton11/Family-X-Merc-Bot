@@ -84,10 +84,17 @@ public class HitService {
         this.pool = pool;
     }
 
-    /** Processes one batch from a faction's attack log. Returns how many hits were recorded. */
-    public int process(List<TornAttack> batch) {
+    /**
+     * Processes the combined attack logs. Fights that ended after {@code settledBefore} are left
+     * for the next pass. Returns how many hits were recorded.
+     */
+    public int process(List<TornAttack> batch, Instant settledBefore) {
         int recorded = 0;
         for (TornAttack.Fight fight : TornAttack.fights(batch)) {
+            TornAttack fin = fight.finish();
+            if (fin.ended() != null && fin.ended().isAfter(settledBefore)) {
+                continue;
+            }
             try {
                 if (handle(fight)) {
                     recorded++;

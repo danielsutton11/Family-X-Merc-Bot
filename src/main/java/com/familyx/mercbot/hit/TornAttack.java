@@ -60,7 +60,8 @@ public record TornAttack(long id, String code, Instant started, Instant ended, L
 
     /**
      * Groups a batch into fights: each Hospitalized/Mugged row with the Assist rows on the same
-     * defender that share its log code, or (when codes differ) overlap its time.
+     * defender. Assists carry their own log code, so they're matched by ending within a few
+     * seconds of the finishing attack (a group fight ends for everyone at once).
      */
     public static List<Fight> fights(List<TornAttack> batch) {
         List<Fight> out = new ArrayList<>();
@@ -69,14 +70,14 @@ public record TornAttack(long id, String code, Instant started, Instant ended, L
                 continue;
             }
             List<TornAttack> assists = new ArrayList<>();
-            Instant end = f.ended() == null ? f.started().plusSeconds(300) : f.ended();
             for (TornAttack a : batch) {
                 if (!a.assist() || a.defenderId() != f.defenderId()) {
                     continue;
                 }
                 boolean sameCode = f.code() != null && f.code().equals(a.code());
-                boolean overlaps = !a.started().isAfter(end.plusSeconds(5)) && !a.started().isBefore(f.started().minusSeconds(300));
-                if (sameCode || overlaps) {
+                boolean endedTogether = a.ended() != null && f.ended() != null
+                        && Math.abs(a.ended().getEpochSecond() - f.ended().getEpochSecond()) <= 10;
+                if (sameCode || endedTogether) {
                     assists.add(a);
                 }
             }

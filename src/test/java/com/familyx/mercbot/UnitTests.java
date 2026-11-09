@@ -317,4 +317,22 @@ class UnitTests {
         assertEquals(5L, noShow.get(0).mercId());
         assertEquals(left, noShow.get(0).amount());
     }
+
+    @Test
+    void assistsJoinTheFightTheyEndedWith() {
+        // From a real Capacity X attack log: Dizzy's assist has its own code but ended with Dsuttz's hit.
+        var hit = new com.familyx.mercbot.hit.TornAttack(557925139, "7d3470f9", Instant.ofEpochSecond(1794230290),
+                Instant.ofEpochSecond(1794230312), 1561637L, "Dsuttz", 9357L, 3489751, "Pillowyendx", "Hospitalized",
+                false, null);
+        var assist = new com.familyx.mercbot.hit.TornAttack(557925159, "1c474c8e", Instant.ofEpochSecond(1794230300),
+                Instant.ofEpochSecond(1794230312), 1806971L, "Dizzy", 9357L, 3489751, "Pillowyendx", "Assist",
+                false, null);
+        var other = new com.familyx.mercbot.hit.TornAttack(557925773, "9b999952", Instant.ofEpochSecond(1794230535),
+                Instant.ofEpochSecond(1794230538), 1561637L, "Dsuttz", 9357L, 3165250, "Pillowyend", "Hospitalized",
+                true, 81);
+        var fights = com.familyx.mercbot.hit.TornAttack.fights(List.of(other, assist, hit));
+        assertEquals(2, fights.size());
+        assertEquals(0, fights.get(0).assists().size());
+        assertEquals(List.of(assist), fights.get(1).assists());
+    }
 }
