@@ -67,8 +67,12 @@ public class ControlPanelService {
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().factory());
 
+    private final com.familyx.mercbot.hit.HitRepository hitLog;
+
     public ControlPanelService(ObjectProvider<JDA> jda, ContractRepository contracts, TargetRepository targets,
-                               TierRepository tiers, RequestRepositories requesters, PanelHashes hashes) {
+                               TierRepository tiers, RequestRepositories requesters, PanelHashes hashes,
+                               com.familyx.mercbot.hit.HitRepository hitLog) {
+        this.hitLog = hitLog;
         this.jda = jda;
         this.contracts = contracts;
         this.targets = targets;
@@ -225,15 +229,22 @@ public class ControlPanelService {
 
         // hits and bill
         HitStats stats = contracts.hitStats(c.id());
+        var breakdown = hitLog.breakdown(c.id());
+        String byTier = breakdown.byTier().isEmpty() ? "billed as they land" : breakdown.byTier().entrySet().stream()
+                .map(e -> e.getValue() + " " + e.getKey()).collect(java.util.stream.Collectors.joining(" · "));
         if (c.mode() == Mode.HITS) {
             int[] progress = contracts.hitProgress(c.id());
-            eb.addField("✅  Hits", progress[0] + " of " + progress[1] + Panels.GAP, true);
+            eb.addField("✅  Hits", progress[0] + " of " + progress[1] + "\n-# " + byTier + Panels.GAP, true);
         } else {
-            eb.addField("✅  Hits", stats.accepted() + " so far\n-# billed as they land" + Panels.GAP, true);
+            eb.addField("✅  Hits", stats.accepted() + " so far\n-# " + byTier + Panels.GAP, true);
         }
         long perHit = Pricing.discounted(c.unitPrice(), c.discountPct());
         eb.addField("💰  Bill so far", Money.full(stats.billed()) + "\n-# " + Money.full(perHit) + " per hit"
                 + Panels.GAP, true);
+        if (breakdown.lastAt() != null) {
+            eb.addField("", "-# Last hit: " + breakdown.lastTarget() + " · " + breakdown.lastTier() + " · "
+                    + SHOW.format(breakdown.lastAt()) + " UTC", false);
+        }
 
         if (!c.mercMe()) {
             Conditions k = c.conditions();

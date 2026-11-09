@@ -83,6 +83,42 @@ public class BoardService {
     private final com.familyx.mercbot.settings.BotSettings settings;
     /** Open claims by target row, as of the last refresh. */
     private volatile Map<Long, ClaimRepository.OpenClaim> openClaims = Map.of();
+    /** Each target's recent verdicts, so a hit can be judged on how the target stood when it started. */
+    private final Map<Long, java.util.Deque<java.util.Map.Entry<Instant, Verdict>>> history = new ConcurrentHashMap<>();
+    private static final java.time.Duration HISTORY = java.time.Duration.ofMinutes(5);
+
+    /**
+     * How the target stood at {@code at}: the last verdict recorded at or before it, or empty if
+     * the bot has no record that far back (just restarted, or the attack is too old).
+     */
+    public Optional<Verdict> verdictAt(long targetId, Instant at) {
+        java.util.Deque<java.util.Map.Entry<Instant, Verdict>> h = history.get(targetId);
+        if (h == null) {
+            return Optional.empty();
+        }
+        synchronized (h) {
+            Verdict found = null;
+            for (java.util.Map.Entry<Instant, Verdict> e : h) {
+                if (e.getKey().isAfter(at)) {
+                    break;
+                }
+                found = e.getValue();
+            }
+            return Optional.ofNullable(found);
+        }
+    }
+
+    private void remember(long targetId, Instant now, Verdict v) {
+        java.util.Deque<java.util.Map.Entry<Instant, Verdict>> h =
+                history.computeIfAbsent(targetId, k -> new java.util.ArrayDeque<>());
+        synchronized (h) {
+            h.addLast(java.util.Map.entry(now, v));
+            while (!h.isEmpty() && h.peekFirst().getKey().isBefore(now.minus(HISTORY)) && h.size() > 1) {
+                h.pollFirst();
+            }
+        }
+    }
+
     /** Each target's verdict at the last refresh, to spot targets coming back. */
     private final Map<Long, Verdict> lastVerdict = new ConcurrentHashMap<>();
 
@@ -129,6 +165,7 @@ public class BoardService {
             for (BoardTarget t : list) {
                 Verdict v = BoardRules.verdict(t, now);
                 Verdict before = lastVerdict.put(t.id(), v);
+                remember(t.id(), now, v);
                 boolean shown = v == Verdict.SHOW;
                 if (shown != t.onBoard()) {
                     targets.setOnBoard(t.id(), shown);

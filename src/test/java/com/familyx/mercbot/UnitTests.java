@@ -282,4 +282,39 @@ class UnitTests {
         // Already hittable targets aren't "early".
         assertEquals(false, BoardRules.showEarly(target("Okay", false, "Offline", 45, away30, now), now, window));
     }
+
+    @Test
+    void hitsAreBilledAndSplitAsTheScopeDocSays() {
+        Tier bronze = new Tier(1, "Bronze", 1, 0, false, false, false, null, null, null, true, false, 1_000_000);
+        Tier silver = new Tier(2, "Silver", 2, 0, true, true, false, null, null, null, true, false, 1_500_000);
+        Tier gold = new Tier(3, "Gold", 3, 0, true, true, true, null, null, null, true, false, 2_900_000);
+        var all = List.of(bronze, silver, gold);
+        assertEquals(gold, com.familyx.mercbot.hit.HitRules.billedTier(all, gold, true, true, true, false));
+        assertEquals(silver, com.familyx.mercbot.hit.HitRules.billedTier(all, gold, false, true, true, false));
+        assertEquals(silver, com.familyx.mercbot.hit.HitRules.billedTier(all, gold, true, true, true, true));
+        assertEquals(bronze, com.familyx.mercbot.hit.HitRules.billedTier(all, gold, true, false, true, false));
+        assertEquals(silver, com.familyx.mercbot.hit.HitRules.billedTier(all, silver, true, true, true, false));
+
+        // Scope doc 7.5 example: $2,610,000 billed, 1% cut, $2,583,900 for the mercs.
+        long cut = com.familyx.mercbot.hit.HitRules.factionCut(2_610_000, BigDecimal.ONE);
+        assertEquals(26_100L, cut);
+        long left = 2_610_000 - cut;
+        BigDecimal p75 = BigDecimal.valueOf(75);
+        BigDecimal p100 = BigDecimal.valueOf(100);
+        var solo = com.familyx.mercbot.hit.HitRules.split(left, 1, List.of(), 0, p75, null, false, p100);
+        assertEquals(1, solo.size());
+        assertEquals(left, solo.get(0).amount());
+        var pair = com.familyx.mercbot.hit.HitRules.split(left, 1, List.of(2L), 0, p75, null, false, p100);
+        assertEquals(1_937_925L, pair.get(0).amount());
+        assertEquals(645_975L, pair.get(1).amount());
+        var forfeited = com.familyx.mercbot.hit.HitRules.split(left, 1, List.of(), 1, p75, null, false, p100);
+        assertEquals(left, forfeited.get(0).amount());
+        var claimed = com.familyx.mercbot.hit.HitRules.split(left, 1, List.of(2L), 0, p75, 2L, true, p100);
+        assertEquals(1, claimed.size());
+        assertEquals(2L, claimed.get(0).mercId());
+        var noShow = com.familyx.mercbot.hit.HitRules.split(left, 1, List.of(), 0, p75, 5L, false, p100);
+        assertEquals(1, noShow.size());
+        assertEquals(5L, noShow.get(0).mercId());
+        assertEquals(left, noShow.get(0).amount());
+    }
 }

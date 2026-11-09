@@ -75,6 +75,26 @@ public class TargetRepository {
                 .param(contractId).query(this::map).list();
     }
 
+    /**
+     * Rows for one player across contracts that are running, paused, or ended in the last two
+     * hours: everything an attack on them might count towards (scope doc 7.2, 7.3).
+     */
+    public List<BoardTarget> forPlayer(long tornId) {
+        return jdbc.sql("""
+                        SELECT ct.*, c.ref, c.status AS contract_status, c.tier_id, c.priority, c.created_at AS c_created,
+                               c.target_kind, c.target_faction_name, c.attack_type, c.status_condition, c.away_minutes,
+                               c.allow_revivable, c.allow_early_discharge, c.starts_at, c.ends_at,
+                               (SELECT count(*) FROM contract_target x WHERE x.contract_id = c.id
+                                    AND x.roster_status = 'ACTIVE') AS target_count,
+                               EXISTS (SELECT 1 FROM target_override o WHERE o.contract_target_id = ct.id
+                                    AND o.used_hit_id IS NULL) AS has_override
+                        FROM contract_target ct JOIN contract c ON c.id = ct.contract_id
+                        WHERE ct.target_torn_id = ? AND ct.roster_status = 'ACTIVE'
+                          AND c.status IN ('ACTIVE', 'PAUSED', 'COMPLETED', 'ENDED')
+                          AND (c.ended_at IS NULL OR c.ended_at > now() - interval '2 hours')""")
+                .param(tornId).query(this::map).list();
+    }
+
     /** A running "All members" faction contract, whose roster follows the faction. */
     public record RosterContract(long contractId, long factionId, Integer hitsPerTarget) { }
 
