@@ -54,7 +54,7 @@ public class InvoiceService {
 
     private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("d MMM HH:mm").withZone(ZoneOffset.UTC);
-    private static final String PROFILE = "https://www.torn.com/profiles.php?XID=";
+    private static final String TRADE = "https://www.torn.com/trade.php#step=start&userID=";
     private static final String ATTACK_LOG = "https://www.torn.com/page.php?sid=attackLog&ID=";
     private static final int LINES_SHOWN = 3;
 
@@ -128,8 +128,8 @@ public class InvoiceService {
             FileUpload file = FileUpload.fromData(csv(lines).getBytes(StandardCharsets.UTF_8),
                     c.ref() + ("INTERIM".equals(inv.kind()) ? "-interim-" + inv.id() : "") + "-invoice.csv");
             if (payee.isPresent()) {
-                dms.send(r.discordId(), embed, file, ActionRow.of(Button.link(PROFILE + payee.get().tornId(),
-                        "Pay " + payee.get().name() + " ↗").withEmoji(Emoji.fromUnicode("💸"))));
+                dms.send(r.discordId(), embed, file, ActionRow.of(Button.link(TRADE + payee.get().tornId(),
+                        "Start trade with " + payee.get().name() + " ↗").withEmoji(Emoji.fromUnicode("💸"))));
             } else {
                 dms.send(r.discordId(), embed, file);
             }
@@ -149,8 +149,8 @@ public class InvoiceService {
                 .collect(java.util.stream.Collectors.joining(" · "));
         String how = inv.payeeTornId() == null
                 ? "A Capacity X leader will tell you who to pay."
-                : "Send **exactly " + Money.full(inv.total()) + "** to [" + inv.payeeName() + " [" + inv.payeeTornId() + "]]("
-                + PROFILE + inv.payeeTornId() + ") in Torn.";
+                : "Start a trade with **" + inv.payeeName() + " [" + inv.payeeTornId() + "]** using the button below "
+                + "and put **exactly " + Money.full(inv.total()) + "** in it.";
         StringBuilder preview = new StringBuilder("```\n");
         lines.stream().limit(LINES_SHOWN).forEach(l -> preview.append(line(l)).append('\n'));
         if (lines.size() > LINES_SHOWN) {
@@ -301,8 +301,8 @@ public class InvoiceService {
                 .setTitle("⏰  " + Money.full(inv.due()) + " is overdue")
                 .setDescription("This invoice was due " + WHEN.format(inv.dueAt()) + " UTC. "
                         + (inv.payeeTornId() == null ? "A Capacity X leader will tell you who to pay"
-                        : "Send it to [" + inv.payeeName() + " [" + inv.payeeTornId() + "]](" + PROFILE + inv.payeeTornId()
-                        + ") in Torn") + ", or message leaders from your control panel.")
+                        : "[Start a trade with " + inv.payeeName() + " [" + inv.payeeTornId() + "]](" + TRADE
+                        + inv.payeeTornId() + ") in Torn and put it in") + ", or message leaders from your control panel.")
                 .build()));
         Long card = null;
         if (withCard) {
