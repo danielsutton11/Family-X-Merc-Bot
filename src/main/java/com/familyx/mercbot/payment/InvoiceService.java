@@ -125,8 +125,8 @@ public class InvoiceService {
         List<Line> lines = invoices.lines(id);
         requesters.requester(c.requesterId()).ifPresent(r -> {
             MessageEmbed embed = invoiceEmbed(c, inv, lines);
-            FileUpload file = FileUpload.fromData(hitList(c, inv, lines).getBytes(StandardCharsets.UTF_8),
-                    c.ref() + "-hits.txt");
+            FileUpload file = FileUpload.fromData(csv(lines).getBytes(StandardCharsets.UTF_8),
+                    c.ref() + ("INTERIM".equals(inv.kind()) ? "-interim-" + inv.id() : "") + "-invoice.csv");
             if (payee.isPresent()) {
                 dms.send(r.discordId(), embed, file, ActionRow.of(Button.link(PROFILE + payee.get().tornId(),
                         "Pay " + payee.get().name() + " ↗").withEmoji(Emoji.fromUnicode("💸"))));
@@ -154,7 +154,7 @@ public class InvoiceService {
         StringBuilder preview = new StringBuilder("```\n");
         lines.stream().limit(LINES_SHOWN).forEach(l -> preview.append(line(l)).append('\n'));
         if (lines.size() > LINES_SHOWN) {
-            preview.append("… ").append(lines.size() - LINES_SHOWN).append(" more in the attached list\n");
+            preview.append("… ").append(lines.size() - LINES_SHOWN).append(" more in the spreadsheet below\n");
         }
         preview.append("```");
         EmbedBuilder eb = new EmbedBuilder().setColor(Panels.PRIVATE)
@@ -180,14 +180,33 @@ public class InvoiceService {
                 + (l.hospSeconds() == null ? "" : " · " + hosp(l.hospSeconds())) + " · " + l.merc();
     }
 
-    private String hitList(Contract c, Invoice inv, List<Line> lines) {
-        StringBuilder sb = new StringBuilder(("INTERIM".equals(inv.kind()) ? "Interim invoice " : "Invoice ") + c.ref()
-                + " · " + lines.size() + " hits · " + Money.full(inv.total()) + "\n\n");
+    private static final DateTimeFormatter CSV_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneOffset.UTC);
+
+    /** Every hit on the invoice, one row each, for opening in a spreadsheet. */
+    static String csv(List<Line> lines) {
+        StringBuilder sb = new StringBuilder(
+                "Time (UTC),Target,Target ID,Billed tier,Why billed lower,Hospital time,Merc,Amount,Attack log\n");
         for (Line l : lines) {
-            sb.append(line(l)).append(" · ").append(Money.full(l.billed()))
-                    .append(l.attackCode() == null ? "" : " · " + ATTACK_LOG + l.attackCode()).append('\n');
+            sb.append(cell(CSV_TIME.format(l.started()))).append(',')
+                    .append(cell(l.target())).append(',')
+                    .append(l.targetId()).append(',')
+                    .append(cell(l.tier() == null ? "" : l.tier())).append(',')
+                    .append(cell(l.downgrade() == null ? "" : l.downgrade())).append(',')
+                    .append(cell(l.hospSeconds() == null ? "" : hosp(l.hospSeconds()))).append(',')
+                    .append(cell(l.merc())).append(',')
+                    .append(l.billed()).append(',')
+                    .append(cell(l.attackCode() == null ? "" : ATTACK_LOG + l.attackCode())).append('\n');
         }
         return sb.toString();
+    }
+
+    private static String cell(String v) {
+        if (v == null) {
+            return "";
+        }
+        boolean quote = v.contains(",") || v.contains("\"") || v.contains("\n");
+        return quote ? "\"" + v.replace("\"", "\"\"") + "\"" : v;
     }
 
     // ------------------------------------------------------------------ deposits and payments

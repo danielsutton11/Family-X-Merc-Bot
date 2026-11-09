@@ -31,12 +31,16 @@ public class Dms {
                 .queue(null, e -> log.info("Couldn't DM {}: {}", discordId, e.getMessage()));
     }
 
-    /** Sends with a file attached, in the background. */
+    /**
+     * Sends the embed, then the file as its own message straight after (Discord shows a file
+     * above the embed when they share a message).
+     */
     public void send(long discordId, MessageEmbed embed, net.dv8tion.jda.api.utils.FileUpload file, ActionRow... rows) {
         jda.retrieveUserById(discordId)
                 .flatMap(user -> user.openPrivateChannel())
-                .flatMap(dm -> dm.sendMessage(new MessageCreateBuilder().setEmbeds(embed).setFiles(file)
-                        .setComponents(List.of(rows)).build()))
+                .flatMap(dm -> dm.sendMessage(new MessageCreateBuilder().setEmbeds(embed)
+                                .setComponents(List.of(rows)).build())
+                        .flatMap(sent -> dm.sendFiles(file)))
                 .queue(null, e -> log.info("Couldn't DM {}: {}", discordId, e.getMessage()));
     }
 
