@@ -113,6 +113,15 @@ public class RequestHandler implements InteractionHandler {
                 d.resetDetails();
                 step1(d, null).show(event);
             });
+            case "go1" -> withDraft(event, d -> {
+                if (d.factionRequest == null || d.forTarget == null) {
+                    who(d).show(event);
+                    return;
+                }
+                InteractionHook hook = Screen.deferInPlace(event); // the war check can take a moment
+                service.applyStep1Defaults(d);
+                step1(d, null).show(hook);
+            });
             case "restart", "who0" -> withDraft(event, d -> {
                 d.mercMe = false;
                 d.repeatOfRef = null;
@@ -226,13 +235,11 @@ public class RequestHandler implements InteractionHandler {
                 if (d.forTarget != null && d.forTarget.myFaction != d.factionRequest) {
                     d.forTarget = null;
                 }
-                step1(d, null).show(event);
+                who(d).show(event);
             });
             case "for" -> withDraft(event, d -> {
                 d.forTarget = ForTarget.valueOf(v);
-                InteractionHook hook = Screen.deferInPlace(event); // the war check can take a moment
-                service.applyStep1Defaults(d);
-                step1(d, null).show(hook);
+                who(d).show(event);
             });
             case "attack" -> withDraft(event, d -> {
                 d.attack = Attack.valueOf(v);
@@ -464,7 +471,10 @@ public class RequestHandler implements InteractionHandler {
         return text.length() <= max ? text : text.substring(0, max - 1) + "…";
     }
 
-    /** The first screen: Personal request or Faction request. Picking one goes straight to step 1. */
+    /**
+     * The first screen: Personal request or Faction request, then the target type for it. Next
+     * opens step 1 with the scenario's defaults filled in.
+     */
     private Screen who(Draft d) {
         EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT")
                 .setTitle("⚔️  Who's this request for?")
@@ -476,21 +486,40 @@ public class RequestHandler implements InteractionHandler {
             menu.addOption("Faction request", "faction",
                     d.requesterFactionName == null ? null : "For " + d.requesterFactionName, Emoji.fromUnicode("🏰"));
         }
-        return Screen.of(eb.build(), ActionRow.of(menu.build()),
-                ActionRow.of(Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️"))));
+        if (d.factionRequest != null && (!d.factionRequest || d.requesterFactionId != null)) {
+            menu.setDefaultValues(d.factionRequest ? "faction" : "personal");
+        }
+        List<ActionRow> rows = new ArrayList<>();
+        rows.add(ActionRow.of(menu.build()));
+        if (d.factionRequest != null) {
+            StringSelectMenu.Builder forT = StringSelectMenu.create(CustomId.of("req", "for")).setPlaceholder("Target…");
+            for (ForTarget f : ForTarget.values()) {
+                if (f.myFaction == d.factionRequest) {
+                    forT.addOption(f.label, f.name(), null, Emoji.fromUnicode("🎯"));
+                }
+            }
+            if (d.forTarget != null && d.forTarget.myFaction == d.factionRequest) {
+                forT.setDefaultValues(d.forTarget.name());
+            }
+            rows.add(ActionRow.of(forT.build()));
+        }
+        Button next = Button.primary(CustomId.of("req", "go1"), "Next").withEmoji(Emoji.fromUnicode("➡️"));
+        rows.add(ActionRow.of(Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️")),
+                d.factionRequest != null && d.forTarget != null ? next : next.asDisabled()));
+        return Screen.of(eb.build(), rows.toArray(new ActionRow[0]));
     }
 
     private Screen step1(Draft d, String notice) {
-        if (d.factionRequest == null) {
+        if (d.factionRequest == null || d.forTarget == null) {
             return who(d);
         }
         List<Tier> offered = service.offeredTiers();
-        String forLine = d.factionRequest
+        String forLine = (d.factionRequest
                 ? "For: **Faction request**" + (d.requesterFactionName == null ? "" : " (" + d.requesterFactionName + ")")
-                : "For: **Personal request**";
+                : "For: **Personal request**") + " · **" + d.forTarget.label + "**";
         EmbedBuilder eb = new EmbedBuilder().setColor(BLUE).setAuthor("NEW CONTRACT · STEP 1 OF 3")
                 .setTitle("⚔️  What do you need?")
-                .setDescription((notice == null ? "" : notice + "\n\n") + forLine + "\nPick each option, then press Next."
+                .setDescription((notice == null ? "" : notice + "\n\n") + forLine + "\nDefaults for your situation are filled in. Change anything, then press Next."
                         + Panels.GAP);
         if (offered.isEmpty()) {
             return Screen.of(notice(Panels.WARN, "No tiers are available right now", "Check back soon.").build(),
@@ -503,15 +532,6 @@ public class RequestHandler implements InteractionHandler {
         }
         if (d.tierId != null && offered.stream().anyMatch(t -> t.id() == d.tierId)) {
             tier.setDefaultValues(Integer.toString(d.tierId));
-        }
-        StringSelectMenu.Builder forT = StringSelectMenu.create(CustomId.of("req", "for")).setPlaceholder("Target…");
-        for (ForTarget f : ForTarget.values()) {
-            if (f.myFaction == d.factionRequest) {
-                forT.addOption(f.label, f.name(), null, Emoji.fromUnicode("🎯"));
-            }
-        }
-        if (d.forTarget != null) {
-            forT.setDefaultValues(d.forTarget.name());
         }
         StringSelectMenu.Builder attack = StringSelectMenu.create(CustomId.of("req", "attack")).setPlaceholder("Attack type…")
                 .addOption("Attack: Hospitalize", Attack.HOSPITALIZE.name(), "Put targets in hospital", Emoji.fromUnicode("🏥"))
@@ -527,7 +547,7 @@ public class RequestHandler implements InteractionHandler {
             mode.setDefaultValues(d.mode.name());
         }
         Button next = Button.primary(CustomId.of("req", "next"), "Next: details").withEmoji(Emoji.fromUnicode("➡️"));
-        return Screen.of(eb.build(), ActionRow.of(forT.build()), ActionRow.of(tier.build()), ActionRow.of(attack.build()),
+        return Screen.of(eb.build(), ActionRow.of(tier.build()), ActionRow.of(attack.build()),
                 ActionRow.of(mode.build()),
                 ActionRow.of(Button.secondary(CustomId.of("req", "who0"), "Back").withEmoji(Emoji.fromUnicode("⬅️")),
                         Button.secondary(CustomId.of("req", "cancel"), "Cancel").withEmoji(Emoji.fromUnicode("✖️")),
