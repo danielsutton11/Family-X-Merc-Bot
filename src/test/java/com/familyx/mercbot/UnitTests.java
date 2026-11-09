@@ -335,4 +335,19 @@ class UnitTests {
         assertEquals(0, fights.get(0).assists().size());
         assertEquals(List.of(assist), fights.get(1).assists());
     }
+
+    @Test
+    void depositsAreReadFromFactionNews() {
+        String text = "<a href = \"http://www.torn.com/profiles.php?XID=2087183\">Hoezey</a> increased "
+                + "<a href = \"http://www.torn.com/profiles.php?XID=2311136\">mercs</a>'s money balance by "
+                + "$131,280,000 from $1,000 to $131,281,000";
+        var p = com.familyx.mercbot.payment.NewsReconciler.parse(text).orElseThrow();
+        assertEquals(2087183L, p.actorId());
+        assertEquals("Hoezey", p.actorName());
+        assertEquals("increased", p.direction());
+        assertEquals(2311136L, p.accountId());
+        assertEquals(131_280_000L, p.amount());
+        assertEquals(131_281_000L, p.after());
+        assertEquals(true, com.familyx.mercbot.payment.NewsReconciler.parse("Hoezey deposited $5,000").isEmpty());
+    }
 }

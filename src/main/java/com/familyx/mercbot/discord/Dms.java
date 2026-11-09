@@ -31,6 +31,15 @@ public class Dms {
                 .queue(null, e -> log.info("Couldn't DM {}: {}", discordId, e.getMessage()));
     }
 
+    /** Sends with a file attached, in the background. */
+    public void send(long discordId, MessageEmbed embed, net.dv8tion.jda.api.utils.FileUpload file, ActionRow... rows) {
+        jda.retrieveUserById(discordId)
+                .flatMap(user -> user.openPrivateChannel())
+                .flatMap(dm -> dm.sendMessage(new MessageCreateBuilder().setEmbeds(embed).setFiles(file)
+                        .setComponents(List.of(rows)).build()))
+                .queue(null, e -> log.info("Couldn't DM {}: {}", discordId, e.getMessage()));
+    }
+
     /** Sends and waits; returns false if the DM couldn't be delivered (used as the sign-up DM check). */
     public boolean sendNow(long discordId, MessageEmbed embed) {
         try {

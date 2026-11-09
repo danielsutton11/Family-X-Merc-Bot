@@ -62,6 +62,62 @@ public class BotSettings {
         return repo.get("money.claimerNoShowPct", java.math.BigDecimal.class).orElse(java.math.BigDecimal.valueOf(100));
     }
 
+    // ---- payments (scope doc 4.6, 6.6; Settings → Payments)
+
+    /** A Capacity X leader requesters pay in Torn. */
+    public record Payee(long tornId, String name, long discordId) { }
+
+    public static final String PAYEES = "payments.payees";
+    public static final String PAYEE_NEXT = "payments.nextPayee";
+    public static final String POOL_ACCOUNT = "payments.poolAccountId";
+    public static final String POOL_NAME = "payments.poolAccountName";
+    public static final String DUE_HOURS = "payments.dueHours";
+    public static final String SETTLEMENT = "payments.settlementPeriod";
+    public static final String PAY_FACTION = "payments.factionId";
+
+    public java.util.List<Payee> payees() {
+        try {
+            return repo.get(PAYEES, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<Payee>>() { })
+                    .orElse(java.util.List.of());
+        } catch (RuntimeException e) {
+            return java.util.List.of();
+        }
+    }
+
+    /** The next payee in turn (rotates so one leader isn't always holding the money); empty when none are set. */
+    public synchronized java.util.Optional<Payee> nextPayee() {
+        java.util.List<Payee> list = payees();
+        if (list.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        int i = Math.floorMod(repo.get(PAYEE_NEXT, Integer.class).orElse(0), list.size());
+        repo.put(PAYEE_NEXT, (i + 1) % list.size(), null);
+        return java.util.Optional.of(list.get(i));
+    }
+
+    /** The faction balance account requester payments are added to (scope doc 6.6). */
+    public long poolAccountId() {
+        return repo.get(POOL_ACCOUNT, Long.class).orElse(2311136L);
+    }
+
+    public String poolAccountName() {
+        return repo.get(POOL_NAME, String.class).orElse("mercs");
+    }
+
+    public int paymentDueHours() {
+        return repo.get(DUE_HOURS, Integer.class).orElse(48);
+    }
+
+    /** PER_CONTRACT, WEEKLY or MONTHLY. */
+    public String settlementPeriod() {
+        return repo.get(SETTLEMENT, String.class).orElse("WEEKLY");
+    }
+
+    /** Capacity X: whose bank and news hold the payments, and whose leaders confirm them. */
+    public long paymentFactionId() {
+        return repo.get(PAY_FACTION, Long.class).orElse(9357L);
+    }
+
     // ---- request defaults (scope doc 4.3; Settings → Requests)
 
     public static String requestDefaultsKey(com.familyx.mercbot.request.Scenarios.Key k) {

@@ -68,11 +68,14 @@ public class ControlPanelService {
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().factory());
 
     private final com.familyx.mercbot.hit.HitRepository hitLog;
+    private final com.familyx.mercbot.payment.InvoiceRepository invoiceLog;
 
     public ControlPanelService(ObjectProvider<JDA> jda, ContractRepository contracts, TargetRepository targets,
                                TierRepository tiers, RequestRepositories requesters, PanelHashes hashes,
-                               com.familyx.mercbot.hit.HitRepository hitLog) {
+                               com.familyx.mercbot.hit.HitRepository hitLog,
+                               com.familyx.mercbot.payment.InvoiceRepository invoiceLog) {
         this.hitLog = hitLog;
+        this.invoiceLog = invoiceLog;
         this.jda = jda;
         this.contracts = contracts;
         this.targets = targets;
@@ -241,6 +244,18 @@ public class ControlPanelService {
         long perHit = Pricing.discounted(c.unitPrice(), c.discountPct());
         eb.addField("💰  Bill so far", Money.full(stats.billed()) + "\n-# " + Money.full(perHit) + " per hit"
                 + Panels.GAP, true);
+        var invoiceList = invoiceLog.forContract(c.id());
+        if (!invoiceList.isEmpty()) {
+            long total = invoiceList.stream().mapToLong(i -> i.total()).sum();
+            long paid = invoiceList.stream().mapToLong(i -> i.amountPaid()).sum();
+            var latest = invoiceList.get(invoiceList.size() - 1);
+            String text = paid >= total ? "✅ Paid\n-# " + Money.full(total)
+                    : Money.full(total - paid) + " to pay\n-# due " + SHOW.format(latest.dueAt()) + " UTC"
+                    + (latest.payeeName() == null ? "" : " · pay " + latest.payeeName());
+            eb.addField("🧾  Invoice", text + Panels.GAP, true);
+        } else if (("COMPLETED".equals(c.status()) || "ENDED".equals(c.status())) && stats.accepted() == 0) {
+            eb.addField("🧾  Invoice", "Nothing to pay\n-# no hits were made" + Panels.GAP, true);
+        }
         if (breakdown.lastAt() != null) {
             eb.addField("", "-# Last hit: " + breakdown.lastTarget() + " · " + breakdown.lastTier() + " · "
                     + SHOW.format(breakdown.lastAt()) + " UTC", false);

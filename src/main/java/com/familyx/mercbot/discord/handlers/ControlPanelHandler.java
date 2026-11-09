@@ -66,9 +66,13 @@ public class ControlPanelHandler implements InteractionHandler {
     private final Layout layout;
     private final ObjectProvider<net.dv8tion.jda.api.JDA> jda;
 
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.payment.InvoiceService> invoices;
+
     public ControlPanelHandler(ContractRepository contracts, RequestRepositories requesters, TargetRepository targets,
                                ControlPanelService panels, ResultsFeed feed, BoardService boards, Layout layout,
-                               ObjectProvider<net.dv8tion.jda.api.JDA> jda) {
+                               ObjectProvider<net.dv8tion.jda.api.JDA> jda,
+                               org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.payment.InvoiceService> invoices) {
+        this.invoices = invoices;
         this.contracts = contracts;
         this.requesters = requesters;
         this.targets = targets;
@@ -134,6 +138,7 @@ public class ControlPanelHandler implements InteractionHandler {
             case "endyes" -> {
                 if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "ENDED")) {
                     feed.contract(c, "⏹️", "ended early by the requester", feed.hitsLanded(c));
+                    invoices.getObject().issueFinal(c);
                     changed(c.id());
                     closing(event, "⏹️ **" + c.ref() + "** has ended. No more hits will count.");
                 } else {

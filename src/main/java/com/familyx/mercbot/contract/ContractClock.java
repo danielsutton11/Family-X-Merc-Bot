@@ -34,8 +34,12 @@ public class ContractClock {
     private final ControlPanelService panels;
     private final BoardService boards;
 
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.payment.InvoiceService> invoices;
+
     public ContractClock(ContractRepository contracts, TierRepository tiers, ResultsFeed feed, PingService pings,
-                         ControlPanelService panels, BoardService boards) {
+                         ControlPanelService panels, BoardService boards,
+                         org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.payment.InvoiceService> invoices) {
+        this.invoices = invoices;
         this.contracts = contracts;
         this.tiers = tiers;
         this.feed = feed;
@@ -64,6 +68,7 @@ public class ContractClock {
         for (Contract c : contracts.pastEnd()) {
             if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "COMPLETED")) {
                 feed.contract(c, "✅", "completed", "end time reached · " + feed.hitsLanded(c));
+                invoices.getObject().issueFinal(c);
                 changed = true;
             }
         }
@@ -71,6 +76,7 @@ public class ContractClock {
             if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "COMPLETED")) {
                 int[] p = contracts.hitProgress(c.id());
                 feed.contract(c, "✅", "completed", "all " + p[1] + " hits done");
+                invoices.getObject().issueFinal(c);
                 changed = true;
             }
         }

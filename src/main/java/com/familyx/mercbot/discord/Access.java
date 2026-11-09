@@ -54,6 +54,15 @@ public class Access {
         return hasRole(member, leaderRoles);
     }
 
+    /** Holds this family faction's leader role (for Capacity X: confirming payments and settlement). */
+    public boolean isLeaderOf(Member member, long factionId) {
+        if (member == null) {
+            return false;
+        }
+        return factions.find(factionId).map(FamilyFactionRepository.FamilyFaction::leaderRoleId)
+                .filter(Objects::nonNull).map(r -> hasRole(member, Set.of(r))).orElse(false);
+    }
+
     private static boolean hasRole(Member member, Set<Long> roleIds) {
         return member.getRoles().stream().map(Role::getIdLong).anyMatch(roleIds::contains);
     }
