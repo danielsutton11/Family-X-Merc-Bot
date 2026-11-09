@@ -247,4 +247,16 @@ class UnitTests {
         assertEquals("Away 45m", BoardRules.activity(target("Okay", false, "Offline", 45, away30, now), now));
         assertEquals("Online now", BoardRules.activity(target("Okay", false, "Online", 0, online, now), now));
     }
+
+    @Test
+    void playerIdsAcceptProfileLinks() {
+        var parse = (java.util.function.Function<String, List<Long>>) com.familyx.mercbot.request.RequestService::parsePlayerIds;
+        assertEquals(List.of(1561637L), parse.apply("https://www.torn.com/profiles.php?XID=1561637"));
+        assertEquals(List.of(1561637L), parse.apply("1561637"));
+        assertEquals(List.of(1561637L, 2023001L, 3503365L), parse.apply(
+                "https://www.torn.com/profiles.php?XID=1561637#/, 2023001\n[3503365] 1561637"));
+        assertEquals(List.of(2L), parse.apply("torn.com/profiles.php?foo=1&XID=2"));
+        assertEquals(null, parse.apply("1561637 Dsuttz"));
+        assertEquals(List.of(), parse.apply("  "));
+    }
 }

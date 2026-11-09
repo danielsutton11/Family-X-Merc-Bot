@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -205,18 +206,41 @@ public class RequestService {
 
     // ------------------------------------------------------------------ step 2: targets
 
-    /** Parses up to 25 player IDs ("1, 2 3") and looks them up. Returns an error, or null. */
+    private static final java.util.regex.Pattern PROFILE_ID =
+            java.util.regex.Pattern.compile("(?i)[?&]XID=(\\d{1,10})");
+
+    /**
+     * Player IDs from what was typed: plain IDs or Torn profile links
+     * (https://www.torn.com/profiles.php?XID=1561637), separated by spaces, commas or new lines.
+     * Returns null if any entry is neither.
+     */
+    public static List<Long> parsePlayerIds(String raw) {
+        List<Long> ids = new ArrayList<>();
+        for (String s : raw.trim().split("[\\s,;]+")) {
+            if (s.isBlank()) {
+                continue;
+            }
+            java.util.regex.Matcher m = PROFILE_ID.matcher(s);
+            if (m.find()) {
+                ids.add(Long.parseLong(m.group(1)));
+            } else if (s.matches("\\[?\\d{1,10}\\]?")) {
+                ids.add(Long.parseLong(s.replaceAll("[\\[\\]]", "")));
+            } else {
+                return null;
+            }
+        }
+        return ids.stream().distinct().toList();
+    }
+
+    /** Parses up to 25 player IDs or profile links and looks them up. Returns an error, or null. */
     public String loadPlayers(Draft d, String raw) {
-        List<Long> ids;
-        try {
-            ids = java.util.Arrays.stream(raw.split("[\\s,;]+")).filter(s -> !s.isBlank())
-                    .map(s -> s.replaceAll("[^0-9]", "")).filter(s -> !s.isBlank()).map(Long::parseLong)
-                    .distinct().toList();
-        } catch (NumberFormatException e) {
-            return "Some of those player IDs weren't numbers.";
+        List<Long> ids = parsePlayerIds(raw);
+        if (ids == null) {
+            return "Some of those weren't player IDs or profile links. Use an ID like 1561637 or a link like "
+                    + "https://www.torn.com/profiles.php?XID=1561637.";
         }
         if (ids.isEmpty()) {
-            return "Enter at least one player ID.";
+            return "Enter at least one player ID or profile link.";
         }
         if (ids.size() > MAX_PLAYERS) {
             return "Up to " + MAX_PLAYERS + " players per request (you entered " + ids.size() + ").";

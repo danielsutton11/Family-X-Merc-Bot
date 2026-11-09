@@ -532,8 +532,9 @@ public class RequestHandler implements InteractionHandler {
     private Modal detailsModal(Draft d, Scenarios.Defaults preview) {
         List<Label> rows = new ArrayList<>();
         if (d.forTarget.kind == Kind.PLAYERS) {
-            rows.add(Label.of("Player IDs (up to 25)", TextInput.create("players", TextInputStyle.PARAGRAPH)
-                    .setRequired(true).setPlaceholder("e.g. 1234567, 2345678").setMaxLength(500).build()));
+            rows.add(Label.of("Player IDs or profile links (up to 25)", TextInput.create("players", TextInputStyle.PARAGRAPH)
+                    .setRequired(true).setPlaceholder("e.g. 1561637 or https://www.torn.com/profiles.php?XID=1561637")
+                    .setMaxLength(2000).build()));
         } else if (d.forTarget.kind == Kind.FACTION) {
             rows.add(Label.of("Target faction ID", TextInput.create("faction", TextInputStyle.SHORT)
                     .setRequired(true).setPlaceholder("e.g. 12345").setMaxLength(10).build()));
