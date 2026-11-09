@@ -81,6 +81,9 @@ public class ClaimService {
                 || BoardRules.verdict(t, now) != Verdict.SHOW && !BoardRules.showEarly(t, now, early)) {
             return Result.refused("That target isn't on the board any more", "The board will catch up in a few seconds.");
         }
+        if (BoardRules.verdict(t, now) == Verdict.SHOW) {
+            return Result.refused("They're already hittable", "Claims are for targets that are coming up. Attack from the board.");
+        }
         Set<Integer> held = roles.tiersFor(m, tiers.findActive(), mercs.allOptedOut().getOrDefault(m.tornId(), Set.of()));
         if (!held.contains(tier.id())) {
             return Result.refused("That's not your tier", "You can only claim targets on boards for tiers you hold.");

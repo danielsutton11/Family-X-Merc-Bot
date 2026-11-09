@@ -49,8 +49,8 @@ public class BoardService {
     public static final int MAX_ROWS = 10;
     private static final String ATTACK_URL = "https://www.torn.com/page.php?sid=attack&user2ID=";
 
-    /** Rows per board while claims are on: each row then needs its own button row (Discord's 40-part limit). */
-    public static final int MAX_ROWS_CLAIMS = 8;
+    /** Rows per board while claims are on (each row still has one button, so the same as without). */
+    public static final int MAX_ROWS_CLAIMS = MAX_ROWS; // one button per row, so claims don't cost rows
 
     /**
      * One row as drawn on a board. {@code early}: shown before it's hittable so it can be
@@ -198,7 +198,7 @@ public class BoardService {
                 + (n == 0 ? "## " + Panels.tierIcon(tier) + "  No targets right now\n-# Targets appear here as soon as a "
                 + tier.name() + " contract has someone to hit."
                 : "## " + Panels.tierIcon(tier) + "  " + n + (n == 1 ? " target" : " targets") + " on the board\n"
-                + (b.claims() ? "-# Claim reserves a target for you · Attack opens it in Torn"
+                + (b.claims() ? "-# Claim a target before it's hittable · Attack opens it in Torn"
                 : "-# Attack opens the target in Torn"));
         parts.add(TextDisplay.of(header));
         if (!b.rows().isEmpty()) {
@@ -221,21 +221,20 @@ public class BoardService {
     }
 
     /**
-     * One row: with claims on, the text then a button row (Claim, Attack); with claims off, the
-     * text with Attack beside it.
+     * One row with a single button on its right: Claim while the target is coming up (claims
+     * on), the claimer's name once claimed, and Attack once the target can be hit.
      */
     private static void addRow(List<ContainerChildComponent> parts, Board b, Row r, Instant now) {
-        Button attack = Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗");
-        if (!b.claims()) {
-            parts.add(Section.of(attack, TextDisplay.of(rowText(b.tier(), r, now))));
-            return;
+        Button button;
+        if (b.claims() && r.early()) {
+            button = r.claim() == null
+                    ? Button.primary(CustomId.of("claim", "take", r.target().id()), "Claim").withEmoji(Emoji.fromUnicode("🔒"))
+                    : Button.secondary(CustomId.of("claim", "held", r.target().id()), ClaimService.name(r.claim()))
+                    .withEmoji(Emoji.fromUnicode("🔒")).asDisabled();
+        } else {
+            button = Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗");
         }
-        parts.add(TextDisplay.of(rowText(b.tier(), r, now)));
-        Button claim = r.claim() == null
-                ? Button.primary(CustomId.of("claim", "take", r.target().id()), "Claim").withEmoji(Emoji.fromUnicode("🔒"))
-                : Button.secondary(CustomId.of("claim", "held", r.target().id()), ClaimService.name(r.claim()))
-                .withEmoji(Emoji.fromUnicode("🔒")).asDisabled();
-        parts.add(ActionRow.of(claim, r.early() ? attack.asDisabled() : attack));
+        parts.add(Section.of(button, TextDisplay.of(rowText(b.tier(), r, now))));
     }
 
     static String rowText(Tier tier, Row r, Instant now) {
