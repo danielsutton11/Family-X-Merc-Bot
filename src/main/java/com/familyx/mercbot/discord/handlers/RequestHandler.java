@@ -206,6 +206,7 @@ public class RequestHandler implements InteractionHandler {
         switch (id.sub()) {
             case "tier" -> withDraft(event, d -> {
                 d.tierId = Integer.parseInt(v);
+                d.chosenInStep1.add("tier");
                 step1(d, null).show(event);
             });
             case "repeatpick" -> withDraft(event, d -> {
@@ -229,14 +230,18 @@ public class RequestHandler implements InteractionHandler {
             });
             case "for" -> withDraft(event, d -> {
                 d.forTarget = ForTarget.valueOf(v);
-                step1(d, null).show(event);
+                InteractionHook hook = Screen.deferInPlace(event); // the war check can take a moment
+                service.applyStep1Defaults(d);
+                step1(d, null).show(hook);
             });
             case "attack" -> withDraft(event, d -> {
                 d.attack = Attack.valueOf(v);
+                d.chosenInStep1.add("attack");
                 step1(d, null).show(event);
             });
             case "mode" -> withDraft(event, d -> {
                 d.mode = Mode.valueOf(v);
+                d.chosenInStep1.add("mode");
                 step1(d, null).show(event);
             });
             case "pick" -> withDraft(event, d -> {
@@ -510,7 +515,7 @@ public class RequestHandler implements InteractionHandler {
         }
         StringSelectMenu.Builder attack = StringSelectMenu.create(CustomId.of("req", "attack")).setPlaceholder("Attack type…")
                 .addOption("Attack: Hospitalize", Attack.HOSPITALIZE.name(), "Put targets in hospital", Emoji.fromUnicode("🏥"))
-                .addOption("Attack: Mug", Attack.MUG.name(), "Keep war targets in rotation", Emoji.fromUnicode("💸"));
+                .addOption("Attack: Mug", Attack.MUG.name(), "Keep war targets in rotation/Just Mug", Emoji.fromUnicode("💸"));
         if (d.attack != null) {
             attack.setDefaultValues(d.attack.name());
         }

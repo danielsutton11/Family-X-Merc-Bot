@@ -255,7 +255,7 @@ public class ControlPanelService {
                 manage.addOption("Edit conditions", "edit", "Status, revivable, early discharge, hits or end time, notes",
                         Emoji.fromUnicode("🎛️"));
                 if (!c.mercMe()) {
-                    manage.addOption("Hit specific member", "override", "Allow one hit on a member the conditions hide",
+                    manage.addOption("Hit specific user", "override", "Allow one hit on a user the conditions hide",
                             Emoji.fromUnicode("🎯"));
                 }
                 manage.addOption("End now", "end", "Close the contract and invoice the hits made so far",

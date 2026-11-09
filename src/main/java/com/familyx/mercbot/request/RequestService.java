@@ -192,6 +192,34 @@ public class RequestService {
         return tiers.find(tierId);
     }
 
+    /**
+     * Pre-selects Tier, Attack and Mode on step 1 from the scenario for the chosen target type,
+     * except any the requester has already picked themselves in this request.
+     */
+    public void applyStep1Defaults(Draft d) {
+        if (d.forTarget == null || d.mercMe) {
+            return;
+        }
+        Scenarios.War myWar = d.requesterFactionId == null ? null : torn.war(d.requesterFactionId).orElse(null);
+        Scenarios.Step1 s = Scenarios.step1(d.forTarget, myWar, java.time.Instant.now());
+        if (s == null) {
+            return;
+        }
+        if (!d.chosenInStep1.contains("tier")) {
+            List<Tier> offered = offeredTiers();
+            Optional<Tier> want = s.gold()
+                    ? goldTier().filter(g -> offered.stream().anyMatch(t -> t.id() == g.id()))
+                    : offered.stream().filter(t -> t.name().equalsIgnoreCase("Silver")).findFirst();
+            want.ifPresent(t -> d.tierId = t.id());
+        }
+        if (!d.chosenInStep1.contains("attack")) {
+            d.attack = s.attack();
+        }
+        if (!d.chosenInStep1.contains("mode")) {
+            d.mode = s.mode();
+        }
+    }
+
     /** Merc me is always the Gold tier (the highest tier that needs Stricken). */
     public Optional<Tier> goldTier() {
         return tiers.findActive().stream().filter(Tier::requiresStricken).max(Comparator.comparingInt(Tier::rank))
@@ -438,6 +466,7 @@ public class RequestService {
         d.tierId = c.tierId();
         d.attack = c.attack();
         d.mode = c.mode();
+        d.chosenInStep1.addAll(List.of("tier", "attack", "mode")); // a repeat keeps its own choices
         d.forTarget = c.mercMe() ? Choices.ForTarget.PERSONAL_PLAYERS
                 : c.factionTarget()
                 ? (c.myFaction() ? (who.requesterFactionId != null && who.requesterFactionId.equals(c.targetFactionId())

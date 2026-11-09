@@ -35,6 +35,8 @@ public class Draft {
     public Attack attack;
     public Mode mode;
     public boolean mercMe;
+    /** Step 1 options the requester picked themselves ("tier", "attack", "mode"): scenario defaults leave these alone. */
+    public Set<String> chosenInStep1 = new java.util.HashSet<>();
 
     // step 2
     public List<Player> players = new ArrayList<>();
