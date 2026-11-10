@@ -43,6 +43,12 @@ public class TargetRepository {
         this.jdbc = jdbc;
     }
 
+    /** Running Merc me contracts (their hits bill at Gold even on a revivable target, so they stay on Gold only). */
+    public java.util.Set<Long> mercMeContracts() {
+        return new java.util.HashSet<>(jdbc.sql("SELECT id FROM contract WHERE merc_me AND status IN ('ACTIVE', 'PAUSED')")
+                .query(Long.class).list());
+    }
+
     /** Targets of contracts that are live or paused right now (inside their time window). */
     public List<BoardTarget> running() {
         return jdbc.sql("""

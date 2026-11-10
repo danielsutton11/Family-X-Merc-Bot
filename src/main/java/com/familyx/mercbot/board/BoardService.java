@@ -62,8 +62,9 @@ public class BoardService {
      * What a board shows: the top rows, every row in order (for the private pages), how many
      * more there are beyond the top, and why the rest are hidden.
      */
+    /** {@code borrowed}: rows from a higher tier's contract shown here, by target id → that tier's name. */
     public record Board(Tier tier, List<Row> rows, List<Row> all, int more, Map<Verdict, Integer> hidden,
-                        boolean claims) {
+                        boolean claims, Map<Long, String> borrowed) {
         public int perPage() {
             return claims ? MAX_ROWS_CLAIMS : MAX_ROWS;
         }
@@ -153,23 +154,29 @@ public class BoardService {
         List<BoardTarget> running = targets.running();
         ClaimService.Sweep sweep = claims.sweep(running, now);
         openClaims = sweep.open();
-        Map<Integer, List<BoardTarget>> byTier = new HashMap<>();
+        List<Tier> active = tiers.findActive();
+        Map<Integer, List<BoardTarget>> byTier = byTier(running, active);
+        // Verdicts once per target: a target can sit on two boards (a Gold row billed at Silver).
+        Map<Long, Verdict> verdicts = new HashMap<>();
+        Map<Long, Verdict> befores = new HashMap<>();
         for (BoardTarget t : running) {
-            byTier.computeIfAbsent(t.tierId(), k -> new ArrayList<>()).add(t);
+            Verdict v = BoardRules.verdict(t, now);
+            verdicts.put(t.id(), v);
+            befores.put(t.id(), lastVerdict.put(t.id(), v));
+            remember(t.id(), now, v);
+            boolean shown = v == Verdict.SHOW;
+            if (shown != t.onBoard()) {
+                targets.setOnBoard(t.id(), shown);
+            }
         }
-        for (Tier tier : tiers.findActive()) {
+        for (Tier tier : active) {
             List<BoardTarget> list = byTier.getOrDefault(tier.id(), List.of());
             Board board = build(tier, list, now);
             List<BoardTarget> back = new ArrayList<>();
             Map<Long, Boolean> fromHospital = new HashMap<>();
             for (BoardTarget t : list) {
-                Verdict v = BoardRules.verdict(t, now);
-                Verdict before = lastVerdict.put(t.id(), v);
-                remember(t.id(), now, v);
-                boolean shown = v == Verdict.SHOW;
-                if (shown != t.onBoard()) {
-                    targets.setOnBoard(t.id(), shown);
-                }
+                Verdict v = verdicts.get(t.id());
+                Verdict before = befores.get(t.id());
                 if (v == Verdict.SHOW && before != null && before != Verdict.SHOW && before != Verdict.UNKNOWN) {
                     // Includes targets returning because their contract was resumed.
                     back.add(t);
@@ -196,6 +203,21 @@ public class BoardService {
                         new MessageUpdater.Edit(tier.channelId(), tier.boardMessageId(), data)));
             }
         }
+    }
+
+    /**
+     * Running targets by the board(s) they show on: their contract's tier, plus the lower tier a
+     * revivable Gold target is billed at (it's the same row, so one claim covers both boards).
+     */
+    private Map<Integer, List<BoardTarget>> byTier(List<BoardTarget> running, List<Tier> active) {
+        java.util.Set<Long> mercMe = targets.mercMeContracts();
+        Map<Integer, List<BoardTarget>> byTier = new HashMap<>();
+        for (BoardTarget t : running) {
+            byTier.computeIfAbsent(t.tierId(), k -> new ArrayList<>()).add(t);
+            BoardRules.alsoOn(t, active, mercMe.contains(t.contractId()))
+                    .ifPresent(lower -> byTier.computeIfAbsent(lower.id(), k -> new ArrayList<>()).add(t));
+        }
+        return byTier;
     }
 
     /** The board for one tier, from its running targets. */
@@ -227,7 +249,14 @@ public class BoardService {
                 .thenComparing(r -> r.target().name() == null ? "" : r.target().name().toLowerCase()));
         int perPage = claimsOn ? MAX_ROWS_CLAIMS : MAX_ROWS;
         List<Row> rows = all.subList(0, Math.min(perPage, all.size()));
-        return new Board(tier, List.copyOf(rows), List.copyOf(all), all.size() - rows.size(), hidden, claimsOn);
+        Map<Long, String> borrowed = new HashMap<>();
+        for (Row r : all) {
+            if (r.target().tierId() != tier.id()) {
+                tiers.find(r.target().tierId()).ifPresent(own -> borrowed.put(r.target().id(), own.name()));
+            }
+        }
+        return new Board(tier, List.copyOf(rows), List.copyOf(all), all.size() - rows.size(), hidden, claimsOn,
+                Map.copyOf(borrowed));
     }
 
     // ------------------------------------------------------------------ drawing
@@ -280,11 +309,13 @@ public class BoardService {
         } else {
             button = Button.link(ATTACK_URL + r.target().tornId(), "Attack ↗");
         }
-        parts.add(Section.of(button, TextDisplay.of(rowText(b.tier(), r, now))));
+        parts.add(Section.of(button, TextDisplay.of(rowText(b, r, now))));
     }
 
-    static String rowText(Tier tier, Row r, Instant now) {
+    static String rowText(Board b, Row r, Instant now) {
+        Tier tier = b.tier();
         BoardTarget t = r.target();
+        String borrowedFrom = b.borrowed().get(t.id());
         boolean gold = tier.requiresStricken();
         boolean revivableOnGold = gold && Boolean.TRUE.equals(t.revivable()) && t.conditions().allowRevivable();
         String name = t.name() == null ? "Player " + t.tornId() : t.name();
@@ -292,7 +323,9 @@ public class BoardService {
         String line2 = "BSP **" + BspService.format(r.bsp()) + "** · " + contractLabel(t);
         List<String> hints = new ArrayList<>();
         hints.add(t.ref());
-        if (revivableOnGold) {
+        if (borrowedFrom != null) {
+            hints.add("🥇 **" + borrowedFrom + " contract · billed at " + tier.name() + "**");
+        } else if (revivableOnGold) {
             hints.add("billed at Silver");
         }
         if (r.early()) {
@@ -357,7 +390,7 @@ public class BoardService {
         if (tier == null) {
             return null;
         }
-        List<BoardTarget> list = targets.running().stream().filter(t -> t.tierId() == tierId).toList();
+        List<BoardTarget> list = byTier(targets.running(), tiers.findActive()).getOrDefault(tierId, List.of());
         return build(tier, list, Instant.now());
     }
 
@@ -393,7 +426,7 @@ public class BoardService {
         int from = (p - 1) * b.perPage();
         StringBuilder sb = new StringBuilder().append(p).append('/').append(b.pages()).append('/').append(b.all().size());
         for (Row r : b.all().subList(Math.min(from, b.all().size()), Math.min(from + b.perPage(), b.all().size()))) {
-            sb.append('\n').append(rowText(b.tier(), r, asOf));
+            sb.append('\n').append(rowText(b, r, asOf));
         }
         return sb.toString();
     }
@@ -438,7 +471,7 @@ public class BoardService {
      * the layout change are replaced, because Discord can't switch an old message over.
      */
     public long ensureBoard(TextChannel channel, Tier tier) {
-        Board empty = new Board(tier, List.of(), List.of(), 0, Map.of(), settings.claimsOn());
+        Board empty = new Board(tier, List.of(), List.of(), 0, Map.of(), settings.claimsOn(), Map.of());
         if (tier.boardMessageId() != null) {
             try {
                 Message m = channel.retrieveMessageById(tier.boardMessageId()).complete();

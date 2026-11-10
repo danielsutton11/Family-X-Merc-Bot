@@ -29,6 +29,23 @@ public final class BoardRules {
         }
     }
 
+    /**
+     * The lower board a target also shows on: a revivable target on a Stricken tier's contract
+     * that allows revivable targets is billed at the highest tier below it that doesn't need
+     * Stricken, so that tier's mercs see it too. Not Merc me (billed at Gold) or overrides
+     * (Stricken required). Empty for everything else.
+     */
+    public static java.util.Optional<com.familyx.mercbot.tier.TierRepository.Tier> alsoOn(BoardTarget t,
+            java.util.List<com.familyx.mercbot.tier.TierRepository.Tier> active, boolean mercMe) {
+        var own = active.stream().filter(x -> x.id() == t.tierId()).findFirst().orElse(null);
+        if (own == null || !own.requiresStricken() || mercMe || t.hasOverride() || !Boolean.TRUE.equals(t.revivable())
+                || !t.conditions().allowRevivable()) {
+            return java.util.Optional.empty();
+        }
+        return active.stream().filter(x -> x.rank() < own.rank() && !x.requiresStricken())
+                .max(java.util.Comparator.comparingInt(com.familyx.mercbot.tier.TierRepository.Tier::rank));
+    }
+
     public static Verdict verdict(BoardTarget t, Instant now) {
         if ("PAUSED".equals(t.contractStatus())) {
             return Verdict.PAUSED;

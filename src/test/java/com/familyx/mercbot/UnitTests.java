@@ -436,4 +436,18 @@ class UnitTests {
         assertNull(com.familyx.mercbot.discord.handlers.TiersHandler.parseHours("soon"));
         assertNull(com.familyx.mercbot.discord.handlers.TiersHandler.hoursRange(new Integer[] {null, null}));
     }
+
+    @Test
+    void revivableGoldTargetsAlsoShowOnTheSilverBoard() {
+        Instant now = Instant.parse("2026-11-10T12:00:00Z");
+        List<Tier> tiers = List.of(new Tier(1, "Gold", 3, 0, true, true, true, null, null, null, true, false, 2_900_000),
+                new Tier(2, "Silver", 2, 0, true, true, false, null, null, null, true, false, 2_400_000),
+                new Tier(3, "Bronze", 1, 0, false, false, false, null, null, null, true, false, 1_000_000));
+        var allow = new com.familyx.mercbot.request.Conditions(Choices.Status.ANY, 30, true, true);
+        var skip = new com.familyx.mercbot.request.Conditions(Choices.Status.ANY, 30, false, true);
+        assertEquals(Optional.of(2), BoardRules.alsoOn(target("Okay", true, "Online", 1, allow, now), tiers, false).map(Tier::id));
+        assertEquals(Optional.empty(), BoardRules.alsoOn(target("Okay", false, "Online", 1, allow, now), tiers, false));
+        assertEquals(Optional.empty(), BoardRules.alsoOn(target("Okay", true, "Online", 1, skip, now), tiers, false));
+        assertEquals(Optional.empty(), BoardRules.alsoOn(target("Okay", true, "Online", 1, allow, now), tiers, true));
+    }
 }

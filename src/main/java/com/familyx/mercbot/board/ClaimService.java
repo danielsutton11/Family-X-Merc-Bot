@@ -84,9 +84,15 @@ public class ClaimService {
         if (BoardRules.verdict(t, now) == Verdict.SHOW) {
             return Result.refused("They're already hittable", "Claims are for targets that are coming up. Attack from the board.");
         }
-        Set<Integer> held = roles.tiersFor(m, tiers.findActive(), mercs.allOptedOut().getOrDefault(m.tornId(), Set.of()));
+        List<Tier> active = tiers.findActive();
+        Set<Integer> held = roles.tiersFor(m, active, mercs.allOptedOut().getOrDefault(m.tornId(), Set.of()));
         if (!held.contains(tier.id())) {
-            return Result.refused("That's not your tier", "You can only claim targets on boards for tiers you hold.");
+            // A revivable Gold target is also on the board below (billed there), and one claim covers both.
+            Optional<Tier> lower = BoardRules.alsoOn(t, active, targets.mercMeContracts().contains(t.contractId()));
+            if (lower.isEmpty() || !held.contains(lower.get().id())) {
+                return Result.refused("That's not your tier", "You can only claim targets on boards for tiers you hold.");
+            }
+            tier = lower.get();
         }
         Blocks b = claims.blocks(m.tornId());
         if (b.suspendedUntil() != null && b.suspendedUntil().isAfter(now)) {
