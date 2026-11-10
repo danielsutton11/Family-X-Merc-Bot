@@ -230,23 +230,24 @@ public class HardResetService {
 
     // ------------------------------------------------------------------ Discord
 
-    /** Everyone the bot may have DMed: requesters, mercs, key owners, Merc Managers and tracked DMs. */
+    /**
+     * Everyone the bot may have DMed: requesters, mercs, key owners, tracked DMs and anyone in the
+     * audit log (Merc Managers and leaders). Database only: listing role members from Discord
+     * needs the member-list permission and can take longer than Discord allows for a button.
+     */
     private Set<Long> dmRecipients() {
         Set<Long> ids = new HashSet<>(jdbc.sql("""
                         SELECT discord_id FROM requester WHERE discord_id > 0
                         UNION SELECT discord_id FROM merc WHERE discord_id > 0
-                        UNION SELECT owner_discord_id FROM api_key
-                        UNION SELECT user_id FROM dm_message""")
+                        UNION SELECT owner_discord_id FROM api_key WHERE owner_discord_id IS NOT NULL
+                        UNION SELECT user_id FROM dm_message
+                        UNION SELECT actor_discord_id FROM audit_event WHERE actor_discord_id IS NOT NULL""")
                 .query(Long.class).list());
         JDA api = jda.getIfAvailable();
         Guild guild = api == null ? null : api.getGuildById(props.guildId());
         Role managers = guild == null ? null : guild.getRoleById(props.mercManagerRoleId());
         if (managers != null) {
-            try {
-                guild.findMembersWithRoles(managers).get().forEach(m -> ids.add(m.getIdLong()));
-            } catch (Exception e) {
-                log.info("Couldn't list Merc Managers for the DM tidy-up: {}", e.getMessage());
-            }
+            guild.getMembersWithRoles(managers).forEach(m -> ids.add(m.getIdLong())); // whoever is cached; never waits
         }
         return ids;
     }
