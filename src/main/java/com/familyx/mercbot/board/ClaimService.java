@@ -90,7 +90,7 @@ public class ClaimService {
         }
         Blocks b = claims.blocks(m.tornId());
         if (b.suspendedUntil() != null && b.suspendedUntil().isAfter(now)) {
-            return new Result(Kind.BLOCKED, "⛔  Claiming suspended until " + WHEN.format(b.suspendedUntil()) + " UTC",
+            return new Result(Kind.BLOCKED, "⛔  Claiming suspended " + com.familyx.mercbot.suspension.SuspensionService.until(b.suspendedUntil(), false),
                     (b.suspensionReason() == null ? "Set by a Merc Manager." : b.suspensionReason())
                             + " Attack still works.", List.of());
         }

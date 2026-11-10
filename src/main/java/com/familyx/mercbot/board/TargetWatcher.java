@@ -41,7 +41,11 @@ public class TargetWatcher {
     private final BoardService boards;
     private final Map<String, Instant> lastFetch = new ConcurrentHashMap<>();
 
-    public TargetWatcher(TargetRepository targets, TornKeyPool pool, TornLookups lookups, BoardService boards) {
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.outside.OutsideService> outside;
+
+    public TargetWatcher(TargetRepository targets, TornKeyPool pool, TornLookups lookups, BoardService boards,
+                         org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.outside.OutsideService> outside) {
+        this.outside = outside;
         this.targets = targets;
         this.pool = pool;
         this.lookups = lookups;
@@ -103,7 +107,8 @@ public class TargetWatcher {
     private void readFaction(long factionId, List<BoardTarget> group, Instant now) {
         JsonNode members;
         try {
-            members = pool.call(TornKeyPool.Scope.any(), "/faction/" + factionId + "/members", Map.of()).path("members");
+            members = pool.call(TornKeyPool.Scope.any(), "/faction/" + factionId + "/members",
+                    Map.of("striptags", "false")).path("members"); // keeps the attacker link in status.details
         } catch (Exception e) {
             log.info("Couldn't read faction {} members: {}", factionId, e.getMessage());
             return;
@@ -125,13 +130,15 @@ public class TargetWatcher {
                     epoch(m.path("last_action").path("timestamp")), text(m.path("last_action").path("status")),
                     m.has("level") ? m.path("level").asInt() : null, text(m.path("name")));
             targets.updateState(t.id(), s, availableAt(t, s, inWar, now), inWar);
+            wentIntoHospital(t, s, now);
         }
     }
 
     private void readPlayer(BoardTarget t, Instant now) {
         JsonNode p;
         try {
-            p = pool.call(TornKeyPool.Scope.any(), "/user/" + t.tornId() + "/profile", Map.of()).path("profile");
+            p = pool.call(TornKeyPool.Scope.any(), "/user/" + t.tornId() + "/profile", Map.of("striptags", "false"))
+                    .path("profile");
         } catch (Exception e) {
             log.info("Couldn't read player {}: {}", t.tornId(), e.getMessage());
             return;
@@ -141,6 +148,14 @@ public class TargetWatcher {
                 null, epoch(p.path("last_action").path("timestamp")), text(p.path("last_action").path("status")),
                 p.has("level") ? p.path("level").asInt() : null, text(p.path("name")));
         targets.updateState(t.id(), s, availableAt(t, s, false, now), false);
+        wentIntoHospital(t, s, now);
+    }
+
+    /** Phase 5a: who put a target in hospital, to spot other merc services (scope doc 7.8). */
+    private void wentIntoHospital(BoardTarget before, TornState now, Instant at) {
+        if ("Hospital".equals(now.state()) && before.lastState() != null && !"Hospital".equals(before.lastState())) {
+            outside.getObject().hospitalised(before, now.details(), at);
+        }
     }
 
     /**

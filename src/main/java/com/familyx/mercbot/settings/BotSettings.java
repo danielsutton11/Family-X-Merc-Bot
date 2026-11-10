@@ -177,6 +177,45 @@ public class BotSettings {
         return repo.get(CLAIM_ALERT_HOURS, Integer.class).orElse(24);
     }
 
+    // ---- alerts (scope doc 7.8, 5.1; Settings → Alerts)
+
+    public static final String ALERT_OFFENSIVE_COUNT = "alerts.offensiveCount";
+    public static final String ALERT_OFFENSIVE_MIN = "alerts.offensiveMinutes";
+    public static final String ALERT_PING_COUNT = "alerts.urgentPings";
+    public static final String ALERT_PING_GAP_MIN = "alerts.urgentPingGapMinutes";
+    public static final String ALERT_DEFENSIVE_COUNT = "alerts.defensiveCount";
+    public static final String ALERT_DEFENSIVE_MIN = "alerts.defensiveMinutes";
+    public static final String ALERT_AVAIL_HOURS = "alerts.availabilityOffHours";
+
+    public int offensiveCount() {
+        return repo.get(ALERT_OFFENSIVE_COUNT, Integer.class).orElse(3);
+    }
+
+    public int offensiveMinutes() {
+        return repo.get(ALERT_OFFENSIVE_MIN, Integer.class).orElse(30);
+    }
+
+    public int urgentPings() {
+        return repo.get(ALERT_PING_COUNT, Integer.class).orElse(3);
+    }
+
+    public int urgentPingGapMinutes() {
+        return repo.get(ALERT_PING_GAP_MIN, Integer.class).orElse(10);
+    }
+
+    public int defensiveCount() {
+        return repo.get(ALERT_DEFENSIVE_COUNT, Integer.class).orElse(3);
+    }
+
+    public int defensiveMinutes() {
+        return repo.get(ALERT_DEFENSIVE_MIN, Integer.class).orElse(30);
+    }
+
+    /** Minimum gap between "your availability is off" DMs. */
+    public int availabilityOffHours() {
+        return repo.get(ALERT_AVAIL_HOURS, Integer.class).orElse(6);
+    }
+
     public void set(String key, Object value, long changedBy) {
         repo.put(key, value, changedBy);
     }

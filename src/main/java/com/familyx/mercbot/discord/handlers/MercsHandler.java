@@ -54,8 +54,12 @@ public class MercsHandler implements InteractionHandler {
     private final FamilyFactionRepository factions;
     private final FactionPerkService perks;
 
+    private final com.familyx.mercbot.suspension.SuspensionService suspensions;
+
     public MercsHandler(MercRepository mercs, MercService service, RoleSync roles, TierRepository tiers,
-                        FamilyFactionRepository factions, FactionPerkService perks) {
+                        FamilyFactionRepository factions, FactionPerkService perks,
+                        com.familyx.mercbot.suspension.SuspensionService suspensions) {
+        this.suspensions = suspensions;
         this.mercs = mercs;
         this.service = service;
         this.roles = roles;
@@ -171,6 +175,11 @@ public class MercsHandler implements InteractionHandler {
         return new Screen(eb.build(), rows);
     }
 
+    /** A merc's page, for other leader screens that return to it (phase 5a: suspensions). */
+    public Screen screen(long tornId, String notice) {
+        return merc(tornId, notice);
+    }
+
     private Screen merc(long tornId, String notice) {
         Optional<Merc> found = mercs.findByTorn(tornId).filter(Merc::active);
         if (found.isEmpty()) {
@@ -193,7 +202,25 @@ public class MercsHandler implements InteractionHandler {
                 .addField("⚡  Stricken", (m.strickenActive() ? "On" : "Off") + Panels.GAP, true)
                 .addField((m.available() ? "🟢" : "🔴") + "  Availability", (m.available() ? "On" : "Off") + Panels.GAP, true)
                 .addField("🔑  Key", (service.keyWorking(m) ? "Working ✅" : "Not working ❌") + Panels.GAP, true);
-        return Screen.of(eb.build(), ActionRow.of(
+        var state = suspensions.state(m.tornId());
+        boolean suspended = state.map(x -> x.suspended(java.time.Instant.now())).orElse(false);
+        eb.addField(suspended ? "⛔  Claiming" : "🔒  Claiming", suspended
+                ? "Suspended " + com.familyx.mercbot.suspension.SuspensionService.until(state.get().suspendedUntil(),
+                state.get().indefinite()) + (state.get().reason() == null ? "" : "\n-# " + state.get().reason())
+                + Panels.GAP : "Allowed" + Panels.GAP, false);
+        ActionRow claimRow;
+        if (suspended) {
+            claimRow = ActionRow.of(Button.success(CustomId.of("noshow", "lift", m.tornId()), "Lift suspension")
+                    .withEmoji(Emoji.fromUnicode("✅")));
+        } else {
+            var pick = net.dv8tion.jda.api.components.selections.StringSelectMenu.create(
+                    CustomId.of("noshow", "suspend", m.tornId())).setPlaceholder("Suspend claiming…");
+            for (var l : com.familyx.mercbot.suspension.SuspensionService.Length.values()) {
+                pick.addOption(l.label, l.name(), Emoji.fromUnicode("⛔"));
+            }
+            claimRow = ActionRow.of(pick.build());
+        }
+        return Screen.of(eb.build(), claimRow, ActionRow.of(
                 Button.secondary(CustomId.of("mercs", "view"), "Mercs").withEmoji(Emoji.fromUnicode("⬅️")),
                 Button.danger(CustomId.of("mercs", "remove", m.tornId()), "Remove from the service")
                         .withEmoji(Emoji.fromUnicode("🚪"))));

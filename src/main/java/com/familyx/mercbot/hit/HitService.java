@@ -67,9 +67,13 @@ public class HitService {
     private final BotSettings settings;
     private final TornKeyPool pool;
 
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.suspension.SuspensionService> suspensions;
+
     public HitService(HitRepository hits, TargetRepository targets, ContractRepository contracts, MercRepository mercs,
                       TierRepository tiers, FactionPerkService perks, BoardService boards, ControlPanelService panels,
-                      ResultsFeed feed, Dms dms, BotSettings settings, TornKeyPool pool) {
+                      ResultsFeed feed, Dms dms, BotSettings settings, TornKeyPool pool,
+                      org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.suspension.SuspensionService> suspensions) {
+        this.suspensions = suspensions;
         this.hits = hits;
         this.targets = targets;
         this.contracts = contracts;
@@ -287,6 +291,16 @@ public class HitService {
             if (m == null) {
                 continue;
             }
+            if (!m.available() && mercs.availabilityReminderDue(m.tornId(), settings.availabilityOffHours())) {
+                dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.WARN).setAuthor("AVAILABILITY")
+                        .setTitle("🔴  Your availability is off, so you're not getting pings")
+                        .setDescription("Your hit still counts. Turn availability on to hear about new contracts and "
+                                + "targets coming back.")
+                        .build(), net.dv8tion.jda.api.components.actionrow.ActionRow.of(
+                        net.dv8tion.jda.api.components.buttons.Button.success(
+                                com.familyx.mercbot.discord.CustomId.of("availon", "on"), "Turn availability on")
+                                .withEmoji(net.dv8tion.jda.api.entities.emoji.Emoji.fromUnicode("🟢"))));
+            }
             if (m.dmPref() == DmPref.EVERY_HIT) {
                 dms.send(m.discordId(), acceptedEmbed(c, f, target, billed, contractTier, downgrade, amount, s, hosp));
             }
@@ -399,6 +413,7 @@ public class HitService {
         int run = hits.bumpNoShows(mercId);
         int limit = settings.claimCooldownNoShows();
         if (run < limit) {
+            alertLeaders(mercId);
             return;
         }
         Instant until = Instant.now().plus(Duration.ofMinutes(settings.claimCooldownMinutes()));
@@ -411,6 +426,16 @@ public class HitService {
                         + hits.targetNameForClaim(claimId).map(t -> " (the latest: " + t + ")").orElse("")
                         + ". You can't claim for " + settings.claimCooldownMinutes() + " minutes. Attack still works.")
                 .build()));
+        alertLeaders(mercId);
+    }
+
+    /** The leader alert card once a merc passes the no-show setting (scope doc 5.6). */
+    private void alertLeaders(long mercId) {
+        try {
+            suspensions.getObject().noShowRecorded(mercId);
+        } catch (Exception e) {
+            log.warn("No-show alert for {} failed: {}", mercId, e.getMessage());
+        }
     }
 
     // ------------------------------------------------------------------ helpers

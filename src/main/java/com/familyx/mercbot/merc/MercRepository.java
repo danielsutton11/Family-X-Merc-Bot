@@ -92,6 +92,14 @@ public class MercRepository {
     }
 
     /** {@code until} null with {@code available} false means off until they turn it back on. */
+    /** True (and stamps the time) when an "availability is off" DM is due: none within the last N hours. */
+    public boolean availabilityReminderDue(long tornId, int hours) {
+        return jdbc.sql("""
+                        UPDATE merc SET avail_reminded_at = now()
+                        WHERE torn_id = ? AND (avail_reminded_at IS NULL OR avail_reminded_at < now() - make_interval(hours => ?))""")
+                .params(tornId, hours).update() == 1;
+    }
+
     public void setAvailability(long tornId, boolean available, Instant until) {
         jdbc.sql("UPDATE merc SET available = ?, available_until = ? WHERE torn_id = ?")
                 .params(available, until == null ? null : OffsetDateTime.ofInstant(until, ZoneOffset.UTC), tornId)

@@ -65,10 +65,14 @@ public class LeaderContractsHandler implements InteractionHandler {
     private final Layout layout;
     private final ObjectProvider<JDA> jda;
 
+    private final com.familyx.mercbot.inbox.InboxService inbox;
+
     public LeaderContractsHandler(ContractRepository contracts, TierRepository tiers, RequestRepositories requesters,
                                   ControlPanelService panels, ResultsFeed feed, BoardService boards,
                                   ObjectProvider<InvoiceService> invoices, ApprovalHandler approvals, Dms dms,
-                                  AuditService audit, Layout layout, ObjectProvider<JDA> jda) {
+                                  AuditService audit, Layout layout, ObjectProvider<JDA> jda,
+                                  com.familyx.mercbot.inbox.InboxService inbox) {
+        this.inbox = inbox;
         this.contracts = contracts;
         this.tiers = tiers;
         this.requesters = requesters;
@@ -239,19 +243,35 @@ public class LeaderContractsHandler implements InteractionHandler {
                 .setTitle("📋  Contracts").setDescription(body + Panels.GAP).build(), rows.toArray(new ActionRow[0]));
     }
 
+    /** The contract view, for other leader screens that return to it (phase 5a: inbox replies). */
+    public Screen screen(Contract c, String notice) {
+        return contract(c, notice);
+    }
+
     private Screen contract(Contract c, String notice) {
         var embed = panels.leaderView(c, label(c.priority()));
-        if (notice != null) {
-            embed = new EmbedBuilder(embed).setDescription(notice + "\n\n" + (embed.getDescription() == null ? ""
-                    : embed.getDescription())).build();
+        String talk = inbox.conversation(c);
+        if (notice != null || talk != null) {
+            EmbedBuilder eb = new EmbedBuilder(embed);
+            if (notice != null) {
+                eb.setDescription(notice + "\n\n" + (embed.getDescription() == null ? "" : embed.getDescription()));
+            }
+            if (talk != null) {
+                eb.addField("✉️  Messages", talk, false);
+            }
+            embed = eb.build();
         }
         List<ActionRow> rows = new ArrayList<>();
         Button back = Button.primary(CustomId.of("lcon", "list", "LIVE"), "All contracts").withEmoji(Emoji.fromUnicode("⬅️"));
+        Button reply = Button.secondary(CustomId.of("inbox", "reply", c.id()), "Reply").withEmoji(Emoji.fromUnicode("↩️"));
         switch (c.status()) {
-            case "PENDING_APPROVAL" -> rows.add(ActionRow.of(
+            case "PENDING_APPROVAL" -> rows.add(talk == null ? ActionRow.of(
                     Button.success(CustomId.of("lcon", "approve", c.id()), "Approve").withEmoji(Emoji.fromUnicode("✅")),
                     Button.danger(CustomId.of("lcon", "reject", c.id()), "Reject…").withEmoji(Emoji.fromUnicode("✖️")),
-                    back));
+                    back) : ActionRow.of(
+                    Button.success(CustomId.of("lcon", "approve", c.id()), "Approve").withEmoji(Emoji.fromUnicode("✅")),
+                    Button.danger(CustomId.of("lcon", "reject", c.id()), "Reject…").withEmoji(Emoji.fromUnicode("✖️")),
+                    reply, back));
             case "ACTIVE", "PAUSED" -> {
                 StringSelectMenu.Builder prio = StringSelectMenu.create(CustomId.of("lcon", "prio", c.id()));
                 for (int p = 0; p < PRIORITY.length; p++) {
@@ -271,8 +291,11 @@ public class LeaderContractsHandler implements InteractionHandler {
                         Button.secondary(CustomId.of("lcon", "end", c.id()), "End now").withEmoji(Emoji.fromUnicode("⏹️")),
                         hits ? cancel.asDisabled() : cancel,
                         back));
+                if (talk != null) {
+                    rows.add(ActionRow.of(reply));
+                }
             }
-            default -> rows.add(ActionRow.of(back));
+            default -> rows.add(talk == null ? ActionRow.of(back) : ActionRow.of(reply, back));
         }
         return Screen.of(embed, rows.toArray(new ActionRow[0]));
     }

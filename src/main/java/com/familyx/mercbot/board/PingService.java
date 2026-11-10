@@ -147,6 +147,21 @@ public class PingService {
         send(tier, parts);
     }
 
+    // ------------------------------------------------------------------ urgent (scope doc 7.8)
+
+    /** Another merc service is hitting a contract's targets: pings the tier, deleted after 10 minutes. */
+    public void urgent(Tier tier, String ref, String title, String body, String footer) {
+        List<MessageTopLevelComponent> parts = new ArrayList<>();
+        String mentions = mentions(tier, true);
+        if (!mentions.isEmpty()) {
+            parts.add(TextDisplay.of(mentions));
+        }
+        parts.add(Container.of(TextDisplay.of("-# **⚠️ URGENT · " + ref + " · " + title.toUpperCase() + "**\n### "
+                        + "Another merc service is hitting this contract's targets\n" + body + "\n-# " + footer))
+                .withAccentColor(Panels.BAD));
+        send(tier, parts, 600);
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /**
@@ -170,6 +185,10 @@ public class PingService {
     }
 
     private void send(Tier tier, List<MessageTopLevelComponent> parts) {
+        send(tier, parts, DELETE_AFTER_SECONDS);
+    }
+
+    private void send(Tier tier, List<MessageTopLevelComponent> parts, long deleteAfterSeconds) {
         JDA api = jda.getIfAvailable();
         TextChannel channel = api == null || tier.channelId() == null ? null : api.getTextChannelById(tier.channelId());
         if (channel == null) {
@@ -177,7 +196,7 @@ public class PingService {
         }
         channel.sendMessage(new MessageCreateBuilder().useComponentsV2().setComponents(parts)
                         .setAllowedMentions(EnumSet.of(Message.MentionType.USER)).build())
-                .queue(m -> m.delete().queueAfter(DELETE_AFTER_SECONDS, TimeUnit.SECONDS, null, ignored -> { }),
+                .queue(m -> m.delete().queueAfter(deleteAfterSeconds, TimeUnit.SECONDS, null, ignored -> { }),
                         e -> log.warn("Ping in {} failed: {}", tier.name(), e.getMessage()));
     }
 }

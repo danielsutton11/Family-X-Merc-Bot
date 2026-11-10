@@ -131,11 +131,13 @@ public class InvoiceService {
             MessageEmbed embed = invoiceEmbed(c, inv, lines);
             FileUpload file = FileUpload.fromData(csv(lines).getBytes(StandardCharsets.UTF_8),
                     c.ref() + ("INTERIM".equals(inv.kind()) ? "-interim-" + inv.id() : "") + "-invoice.csv");
+            Button message = Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
+                    .withEmoji(Emoji.fromUnicode("✉️"));
             if (payee.isPresent()) {
                 dms.send(r.discordId(), embed, file, ActionRow.of(Button.link(TRADE + payee.get().tornId(),
-                        "Start trade with " + payee.get().name() + " ↗").withEmoji(Emoji.fromUnicode("💸"))));
+                        "Start trade with " + payee.get().name() + " ↗").withEmoji(Emoji.fromUnicode("💸")), message));
             } else {
-                dms.send(r.discordId(), embed, file);
+                dms.send(r.discordId(), embed, file, ActionRow.of(message));
             }
         });
         if (payee.isEmpty()) {
@@ -368,7 +370,8 @@ public class InvoiceService {
                         + (inv.payeeTornId() == null ? "A Capacity X leader will tell you who to pay"
                         : "[Start a trade with " + inv.payeeName() + " [" + inv.payeeTornId() + "]](" + TRADE
                         + inv.payeeTornId() + ") in Torn and put it in") + ".")
-                .build()));
+                .build(), ActionRow.of(Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
+                .withEmoji(Emoji.fromUnicode("✉️")))));
         Long card = null;
         if (withCard) {
             long daysLate = Math.max(1, Duration.between(inv.dueAt(), Instant.now()).toDays());

@@ -311,9 +311,13 @@ public class ControlPanelService {
             } else if ("PAUSED".equals(c.status())) {
                 buttons.add(Button.success(CustomId.of("cp", "resume", c.id()), "Resume").withEmoji(Emoji.fromUnicode("▶️")));
             }
-            buttons.add(Button.secondary(CustomId.of("cp", "message", c.id()), "Message leaders")
-                    .withEmoji(Emoji.fromUnicode("✉️")).asDisabled());
+            buttons.add(Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
+                    .withEmoji(Emoji.fromUnicode("✉️")));
             rows.add(ActionRow.of(buttons));
+        } else if (com.familyx.mercbot.inbox.Messaging.canMessage(c, java.time.Instant.now())) {
+            // Finished contracts keep Message leaders for a while (scope doc 4.5).
+            rows.add(ActionRow.of(Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
+                    .withEmoji(Emoji.fromUnicode("✉️"))));
         }
         return new MessageEditBuilder().setReplace(true).setEmbeds(eb.build()).setComponents(rows).build();
     }

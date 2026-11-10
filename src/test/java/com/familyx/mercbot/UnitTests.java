@@ -8,6 +8,8 @@ import com.familyx.mercbot.discord.Money;
 import com.familyx.mercbot.keys.KeyCipher;
 import com.familyx.mercbot.merc.Eligibility;
 import com.familyx.mercbot.payout.Periods;
+import com.familyx.mercbot.outside.HospitalCause;
+import com.familyx.mercbot.inbox.Messaging;
 import com.familyx.mercbot.request.Choices;
 import com.familyx.mercbot.request.Pricing;
 import com.familyx.mercbot.request.Rules;
@@ -378,5 +380,36 @@ class UnitTests {
         assertEquals("[[2104455,5742000],[2650012,3316500]]",
                 Periods.payoutString(List.of(new long[] {2104455, 5742000}, new long[] {2650012, 3316500})));
         assertEquals("[]", Periods.payoutString(List.of()));
+    }
+
+    @Test
+    void hospitalCauseReadsLinkNameAndSomeone() {
+        var linked = HospitalCause.parse("Hospitalized by <a href = \"http://www.torn.com/profiles.php?XID=3311002\">Hosp_Hero</a>")
+                .orElseThrow();
+        assertEquals(HospitalCause.Kind.HOSPITALIZED, linked.kind());
+        assertEquals(Long.valueOf(3311002L), linked.attackerId());
+        assertEquals("Hosp_Hero", linked.attackerName());
+        var plain = HospitalCause.parse("Mugged by Nurse_K").orElseThrow();
+        assertEquals(HospitalCause.Kind.MUGGED, plain.kind());
+        assertNull(plain.attackerId());
+        assertEquals("Nurse_K", plain.attackerName());
+        var someone = HospitalCause.parse("Attacked by someone").orElseThrow();
+        assertEquals(HospitalCause.Kind.ATTACKED, someone.kind());
+        assertNull(someone.attackerName());
+        assertEquals(Optional.empty(), HospitalCause.parse("Overdosed on Xanax"));
+        assertEquals(Optional.empty(), HospitalCause.parse(null));
+    }
+
+    @Test
+    void requestersCanMessageForThirtyDaysAfterTheEnd() {
+        Instant now = Instant.parse("2026-11-10T12:00:00Z");
+        assertEquals(true, Messaging.canMessage("ACTIVE", null, now));
+        assertEquals(true, Messaging.canMessage("COMPLETED", now.minus(java.time.Duration.ofDays(29)), now));
+        assertEquals(false, Messaging.canMessage("COMPLETED", now.minus(java.time.Duration.ofDays(31)), now));
+        assertEquals(false, Messaging.canMessage("EXPIRED", now, now));
+        assertEquals("1st", Messaging.ordinal(1));
+        assertEquals("2nd", Messaging.ordinal(2));
+        assertEquals("11th", Messaging.ordinal(11));
+        assertEquals("23rd", Messaging.ordinal(23));
     }
 }
