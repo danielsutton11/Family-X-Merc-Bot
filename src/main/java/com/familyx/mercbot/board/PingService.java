@@ -46,8 +46,12 @@ public class PingService {
     private static final long DELETE_AFTER_SECONDS = 60;
     private static final int MAX_ROWS = 10;
 
-    /** A target that came back, with how to word it. */
-    public record Back(BoardTarget target, Long bsp, boolean fromHospital) { }
+    /** A target that came back, with how to word it; {@code hittableAt} is set when it's only coming up. */
+    public record Back(BoardTarget target, Long bsp, boolean fromHospital, Instant hittableAt) {
+        boolean comingUp() {
+            return hittableAt != null;
+        }
+    }
 
     private final ObjectProvider<JDA> jda;
     private final MercRepository mercs;
@@ -111,14 +115,23 @@ public class PingService {
         List<Back> shown = sorted.stream().limit(MAX_ROWS).toList();
 
         List<net.dv8tion.jda.api.components.container.ContainerChildComponent> rows = new ArrayList<>();
-        rows.add(TextDisplay.of("-# **TARGETS BACK · @" + tier.name().toUpperCase() + "**\n### " + Panels.tierIcon(tier)
-                + "  " + (items.size() == 1 ? "1 target is" : items.size() + " targets are") + " back on the board"
-                + "\n-# Attack them from the board"));
+        boolean allComing = items.stream().allMatch(Back::comingUp);
+        String are = items.size() == 1 ? "1 target is" : items.size() + " targets are";
+        rows.add(TextDisplay.of(allComing
+                ? "-# **TARGETS COMING UP · @" + tier.name().toUpperCase() + "**\n### " + Panels.tierIcon(tier) + "  " + are
+                + " coming up\n-# Claim them on the board before they're hittable"
+                : "-# **TARGETS BACK · @" + tier.name().toUpperCase() + "**\n### " + Panels.tierIcon(tier) + "  " + are
+                + " back on the board\n-# " + (items.stream().anyMatch(Back::comingUp)
+                ? "Attack them from the board, or claim the ones coming up" : "Attack them from the board")));
         Instant now = Instant.now();
         for (Back b : shown) {
             BoardTarget t = b.target();
             String name = t.name() == null ? "Player " + t.tornId() : t.name();
-            String line3 = t.ref() + " · " + (b.fromHospital() ? "out of hospital" : "back on the board") + " · "
+            String where = "Hospital".equals(t.lastState()) ? "🏥 " : "Jail".equals(t.lastState()) ? "⛓️ " : "⚔️ ";
+            String line3 = b.comingUp()
+                    ? t.ref() + " · " + where + "hittable <t:" + b.hittableAt().getEpochSecond() + ":R>"
+                    + (t.hitsRequired() == null ? "" : " · " + (t.hitsRequired() - t.hitsDone()) + " hits left")
+                    : t.ref() + " · " + (b.fromHospital() ? "out of hospital" : "back on the board") + " · "
                     + BoardRules.activity(t, now)
                     + (t.hitsRequired() == null ? "" : " · " + (t.hitsRequired() - t.hitsDone()) + " hits left");
             rows.add(TextDisplay.of(

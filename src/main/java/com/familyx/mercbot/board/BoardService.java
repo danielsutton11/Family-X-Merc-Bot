@@ -122,6 +122,8 @@ public class BoardService {
 
     /** Each target's verdict at the last refresh, to spot targets coming back. */
     private final Map<Long, Verdict> lastVerdict = new ConcurrentHashMap<>();
+    /** Targets already pinged as "coming up" (claims on): no second ping when they become hittable. */
+    private final java.util.Set<Long> announcedEarly = ConcurrentHashMap.newKeySet();
 
     /** A merc's open "See all" page, kept up to date until Discord stops letting the bot edit it. */
     private record OpenPage(int tierId, int page, net.dv8tion.jda.api.interactions.InteractionHook hook,
@@ -159,28 +161,47 @@ public class BoardService {
         // Verdicts once per target: a target can sit on two boards (a Gold row billed at Silver).
         Map<Long, Verdict> verdicts = new HashMap<>();
         Map<Long, Verdict> befores = new HashMap<>();
+        // Who to ping, decided once per target (scope doc 5.3): with claims on, a target is pinged
+        // as "coming up" when its row first shows early with Claim, and not again when hittable.
+        Map<Long, Boolean> comingUp = new HashMap<>();
+        java.util.Set<Long> backNow = new java.util.HashSet<>();
+        Map<Long, Boolean> fromHospital = new HashMap<>();
+        boolean claimsOn = settings.claimsOn();
+        java.time.Duration window = java.time.Duration.ofMinutes(settings.claimShowEarlyMinutes());
         for (BoardTarget t : running) {
             Verdict v = BoardRules.verdict(t, now);
+            Verdict before = lastVerdict.put(t.id(), v);
             verdicts.put(t.id(), v);
-            befores.put(t.id(), lastVerdict.put(t.id(), v));
+            befores.put(t.id(), before);
             remember(t.id(), now, v);
             boolean shown = v == Verdict.SHOW;
             if (shown != t.onBoard()) {
                 targets.setOnBoard(t.id(), shown);
             }
+            boolean early = claimsOn && !shown && BoardRules.showEarly(t, now, window);
+            if (early) {
+                if (before != null && announcedEarly.add(t.id())) {
+                    comingUp.put(t.id(), true);
+                }
+            } else if (shown) {
+                if (before != null && before != Verdict.SHOW && before != Verdict.UNKNOWN
+                        && !announcedEarly.contains(t.id())) {
+                    // Includes targets returning because their contract was resumed.
+                    backNow.add(t.id());
+                    fromHospital.put(t.id(), before == Verdict.NOT_YET);
+                }
+            } else {
+                announcedEarly.remove(t.id()); // gone again (back in hospital, hidden): the next return pings
+            }
         }
+        announcedEarly.retainAll(verdicts.keySet()); // forget targets whose contract is over
         for (Tier tier : active) {
             List<BoardTarget> list = byTier.getOrDefault(tier.id(), List.of());
             Board board = build(tier, list, now);
             List<BoardTarget> back = new ArrayList<>();
-            Map<Long, Boolean> fromHospital = new HashMap<>();
             for (BoardTarget t : list) {
-                Verdict v = verdicts.get(t.id());
-                Verdict before = befores.get(t.id());
-                if (v == Verdict.SHOW && before != null && before != Verdict.SHOW && before != Verdict.UNKNOWN) {
-                    // Includes targets returning because their contract was resumed.
+                if (backNow.contains(t.id()) || comingUp.containsKey(t.id())) {
                     back.add(t);
-                    fromHospital.put(t.id(), before == Verdict.NOT_YET);
                 }
             }
             back.removeIf(t -> openClaims.containsKey(t.id())); // someone already holds it: no ping
@@ -194,7 +215,8 @@ public class BoardService {
             if (!back.isEmpty()) {
                 Map<Long, Long> est = bsp.estimates(back.stream().map(BoardTarget::tornId).toList());
                 pings.targetsBack(tier, back.stream().map(t -> new PingService.Back(t, est.get(t.tornId()),
-                        fromHospital.getOrDefault(t.id(), false))).toList());
+                        fromHospital.getOrDefault(t.id(), false), comingUp.containsKey(t.id())
+                        ? BoardRules.hittableAt(t, now) : null)).toList());
             }
             updateOpenPages(board, now);
             if (tier.channelId() != null && tier.boardMessageId() != null) {
