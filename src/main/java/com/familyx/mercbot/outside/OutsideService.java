@@ -290,7 +290,7 @@ public class OutsideService {
         }
         Contract now = contracts.find(c.id()).orElse(c);
         feed.contract(now, "⏸️", "paused by a leader", "possible defensive merc service");
-        audit.log(leader, "CONTRACT_PAUSED", "contract:" + c.id(), null, null,
+        audit.log(leader, "CONTRACT_PAUSED", "contract:" + c.id(), null, Map.of("reason", "defensive"),
                 "Paused **" + c.ref() + "** (possible defensive merc service)");
         requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(), new EmbedBuilder()
                 .setColor(Panels.PRIVATE).setAuthor("CONTRACT " + c.ref()).setTitle("⏸️  Paused by a leader")

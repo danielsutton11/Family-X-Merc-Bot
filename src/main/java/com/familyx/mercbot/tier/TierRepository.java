@@ -98,9 +98,28 @@ public class TierRepository {
     }
 
     /** Every price change is a new version (scope doc 6.1); contracts keep the version they were quoted. */
+    /** A new price version; the expected hospital range carries over from the current one. */
     public void addPrice(int tierId, long price, long createdBy) {
-        jdbc.sql("INSERT INTO tier_price_version (tier_id, price_per_hit, created_by) VALUES (?, ?, ?)")
-                .params(tierId, price, createdBy).update();
+        Integer[] range = expectedHosp(tierId);
+        addPrice(tierId, price, range[0], range[1], createdBy);
+    }
+
+    /** A new price version with an expected hospital range in seconds (nulls = not set). */
+    public void addPrice(int tierId, long price, Integer minSeconds, Integer maxSeconds, long createdBy) {
+        jdbc.sql("""
+                        INSERT INTO tier_price_version (tier_id, price_per_hit, expected_hosp_min_s, expected_hosp_max_s, created_by)
+                        VALUES (?, ?, ?, ?, ?)""")
+                .params(tierId, price, minSeconds, maxSeconds, createdBy).update();
+    }
+
+    /** The current version's expected hospital range in seconds: {min, max}, either may be null. */
+    public Integer[] expectedHosp(int tierId) {
+        return jdbc.sql("""
+                        SELECT expected_hosp_min_s, expected_hosp_max_s FROM tier_price_version WHERE tier_id = ?
+                        ORDER BY effective_from DESC, id DESC LIMIT 1""")
+                .param(tierId)
+                .query((rs, n) -> new Integer[] {rs.getObject(1, Integer.class), rs.getObject(2, Integer.class)})
+                .optional().orElse(new Integer[] {null, null});
     }
 
     /** The id of the tier's current price version (stored on contracts so later price changes don't affect them). */

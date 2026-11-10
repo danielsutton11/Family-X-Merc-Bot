@@ -424,4 +424,16 @@ class UnitTests {
         assertNull(com.familyx.mercbot.discord.handlers.RequestersHandler.parsePct("-1"));
         assertEquals("RequestersHandler", h.getSimpleName());
     }
+
+    @Test
+    void expectedHospitalRangeReadsHours() {
+        Integer[] r = com.familyx.mercbot.discord.handlers.TiersHandler.parseHours("2-4");
+        assertEquals(Integer.valueOf(7200), r[0]);
+        assertEquals(Integer.valueOf(14400), r[1]);
+        assertEquals("1.5-3", com.familyx.mercbot.discord.handlers.TiersHandler.hoursRange(
+                com.familyx.mercbot.discord.handlers.TiersHandler.parseHours("1.5–3")));
+        assertNull(com.familyx.mercbot.discord.handlers.TiersHandler.parseHours("4-2"));
+        assertNull(com.familyx.mercbot.discord.handlers.TiersHandler.parseHours("soon"));
+        assertNull(com.familyx.mercbot.discord.handlers.TiersHandler.hoursRange(new Integer[] {null, null}));
+    }
 }

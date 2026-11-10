@@ -215,7 +215,7 @@ public class Panels {
                 ActionRow.of(
                         Button.secondary(CustomId.of("tiers", "view"), "Tiers & pricing")
                                 .withEmoji(Emoji.fromUnicode("🏷️")),
-                        Button.secondary(CustomId.of("soon", "5", "reports"), "Reports")
+                        Button.secondary(CustomId.of("rep", "view"), "Reports")
                                 .withEmoji(Emoji.fromUnicode("📊")),
                         Button.primary(CustomId.of("keys", "view"), "Keys")
                                 .withEmoji(Emoji.fromUnicode("🔑")),

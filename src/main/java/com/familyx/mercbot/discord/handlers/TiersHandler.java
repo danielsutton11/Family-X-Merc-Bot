@@ -195,6 +195,8 @@ public class TiersHandler implements InteractionHandler {
                 : price <= 0 ? "The price wasn't understood. Try 2.4m or 2,400,000."
                 : colour == null ? "The colour should be a hex code like #C0C0C0."
                 : rank == null || rank < 1 || rank > 99 ? "Rank should be a number from 1 (lowest) to 99."
+                : !value(event, "hosp").isBlank() && parseHours(value(event, "hosp")) == null
+                ? "Expected hospital time should look like 2-4 (hours, min-max)."
                 : null;
         if (problem != null) {
             (adding ? list("❌ " + problem) : tier(existing.get().id(), "❌ " + problem)).show(hook);
@@ -205,6 +207,10 @@ public class TiersHandler implements InteractionHandler {
         String notice;
         if (adding) {
             tierId = tiers.create(name, rank, colour, false, false, false, price, user);
+            Integer[] hosp = parseHours(value(event, "hosp"));
+            if (hosp != null) {
+                tiers.addPrice(tierId, price, hosp[0], hosp[1], user);
+            }
             audit.log(user, "TIER_CREATED", "tier:" + tierId, null,
                     Map.of("name", name, "price", price, "rank", rank),
                     "Created tier **" + name + "** at " + Money.full(price) + " per hit");
@@ -213,14 +219,22 @@ public class TiersHandler implements InteractionHandler {
             Tier t = existing.get();
             tierId = t.id();
             tiers.updateDetails(tierId, name, rank, colour);
-            if (price != t.pricePerHit()) {
-                tiers.addPrice(tierId, price, user);
+            Integer[] hospBefore = tiers.expectedHosp(tierId);
+            Integer[] hosp = value(event, "hosp").isBlank() ? new Integer[] {null, null} : parseHours(value(event, "hosp"));
+            boolean hospChanged = !java.util.Arrays.equals(hospBefore, hosp);
+            if (price != t.pricePerHit() || hospChanged) {
+                tiers.addPrice(tierId, price, hosp[0], hosp[1], user);
             }
             audit.log(user, "TIER_EDITED", "tier:" + tierId,
                     Map.of("name", t.name(), "price", t.pricePerHit(), "rank", t.rank(), "colour", t.colour()),
                     Map.of("name", name, "price", price, "rank", rank, "colour", colour),
                     "Edited tier **" + name + "**" + (price != t.pricePerHit()
                             ? " (price " + Money.full(t.pricePerHit()) + " → " + Money.full(price) + ")" : ""));
+            if (hospChanged) {
+                audit.log(user, "TIER_EXPECTED_HOSP", "tier:" + tierId, Map.of("range", String.valueOf(hoursRange(hospBefore))),
+                        Map.of("range", String.valueOf(hoursRange(hosp))), "Set **" + name + "**'s expected hospital time to "
+                                + (hosp[0] == null ? "not set" : hoursRange(hosp) + " hours"));
+            }
             notice = "✅ Saved." + (price != t.pricePerHit() ? " New contracts use the new price." : "");
         }
         Guild guild = event.getGuild();
@@ -317,6 +331,39 @@ public class TiersHandler implements InteractionHandler {
                         Button.danger(CustomId.of("tiers", "retire", t.id()), "Retire").withEmoji(Emoji.fromUnicode("🗑️"))));
     }
 
+    /** "2-4" or "1.5–3" hours → {min, max} seconds; null when it doesn't read. */
+    public static Integer[] parseHours(String s) {
+        if (s == null) {
+            return null;
+        }
+        String[] parts = s.strip().replace("–", "-").replace("h", "").split("-");
+        if (parts.length != 2) {
+            return null;
+        }
+        try {
+            double lo = Double.parseDouble(parts[0].strip());
+            double hi = Double.parseDouble(parts[1].strip());
+            if (lo < 0 || hi <= 0 || lo > hi || hi > 200) {
+                return null;
+            }
+            return new Integer[] {(int) Math.round(lo * 3600), (int) Math.round(hi * 3600)};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** {min, max} seconds → "2-4"; null when not set. */
+    public static String hoursRange(Integer[] r) {
+        if (r == null || r[0] == null || r[1] == null) {
+            return null;
+        }
+        return num(r[0] / 3600.0) + "-" + num(r[1] / 3600.0);
+    }
+
+    private static String num(double h) {
+        return h == Math.rint(h) ? Long.toString((long) h) : Double.toString(Math.round(h * 10) / 10.0);
+    }
+
     private Modal detailsModal(Tier t) {
         int nextRank = tiers.findActive().stream().mapToInt(Tier::rank).max().orElse(0) + 1;
         TextInput name = TextInput.create("name", TextInputStyle.SHORT)
@@ -330,10 +377,14 @@ public class TiersHandler implements InteractionHandler {
         TextInput rank = TextInput.create("rank", TextInputStyle.SHORT)
                 .setRequired(true).setMaxLength(2)
                 .setValue(Integer.toString(t == null ? nextRank : t.rank())).build();
+        TextInput expected = TextInput.create("hosp", TextInputStyle.SHORT)
+                .setRequired(false).setMaxLength(11).setPlaceholder("e.g. 2-4 (blank = not set)")
+                .setValue(t == null ? null : hoursRange(tiers.expectedHosp(t.id()))).build();
         return Modal.create(t == null ? CustomId.of("tiers", "addsubmit") : CustomId.of("tiers", "editsubmit", t.id()),
                         t == null ? "Add a tier" : "Edit " + t.name())
                 .addComponents(Label.of("Name (also the role and channel name)", name), Label.of("Price per hit", price),
-                        Label.of("Colour (hex)", colour), Label.of("Rank (1 = lowest)", rank))
+                        Label.of("Colour (hex)", colour), Label.of("Rank (1 = lowest)", rank),
+                        Label.of("Expected hospital time, hours (min–max)", expected))
                 .build();
     }
 

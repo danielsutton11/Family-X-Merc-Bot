@@ -44,9 +44,9 @@ public class AuditService {
      */
     public void log(Long actorDiscordId, String action, String entity, Object before, Object after, String summary) {
         jdbc.sql("""
-                        INSERT INTO audit_event (actor_discord_id, action, entity, before_json, after_json)
-                        VALUES (?, ?, ?, ?::jsonb, ?::jsonb)""")
-                .params(actorDiscordId, action, entity, json(before), json(after))
+                        INSERT INTO audit_event (actor_discord_id, action, entity, before_json, after_json, summary)
+                        VALUES (?, ?, ?, ?::jsonb, ?::jsonb, ?)""")
+                .params(actorDiscordId, action, entity, json(before), json(after), summary)
                 .update();
 
         layout.get(Layout.CH_AUDIT).ifPresent(channelId -> {
