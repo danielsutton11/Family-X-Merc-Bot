@@ -68,11 +68,14 @@ public class HitService {
     private final TornKeyPool pool;
 
     private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.suspension.SuspensionService> suspensions;
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.dm.HitDmService> hitDms;
 
     public HitService(HitRepository hits, TargetRepository targets, ContractRepository contracts, MercRepository mercs,
                       TierRepository tiers, FactionPerkService perks, BoardService boards, ControlPanelService panels,
                       ResultsFeed feed, Dms dms, BotSettings settings, TornKeyPool pool,
-                      org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.suspension.SuspensionService> suspensions) {
+                      org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.suspension.SuspensionService> suspensions,
+                      org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.dm.HitDmService> hitDms) {
+        this.hitDms = hitDms;
         this.suspensions = suspensions;
         this.hits = hits;
         this.targets = targets;
@@ -292,7 +295,8 @@ public class HitService {
                 continue;
             }
             if (!m.available() && mercs.availabilityReminderDue(m.tornId(), settings.availabilityOffHours())) {
-                dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.WARN).setAuthor("AVAILABILITY")
+                dms.send(m.discordId(), com.familyx.mercbot.discord.Dms.Clean.whenOr("AVAIL_OFF", "merc:" + m.tornId(), java.time.Duration.ofHours(24)),
+                        new EmbedBuilder().setColor(Panels.WARN).setAuthor("AVAILABILITY")
                         .setTitle("🔴  Your availability is off, so you're not getting pings")
                         .setDescription("Your hit still counts. Turn availability on to hear about new contracts and "
                                 + "targets coming back.")
@@ -302,7 +306,7 @@ public class HitService {
                                 .withEmoji(net.dv8tion.jda.api.entities.emoji.Emoji.fromUnicode("🟢"))));
             }
             if (m.dmPref() == DmPref.EVERY_HIT) {
-                dms.send(m.discordId(), acceptedEmbed(c, f, target, billed, contractTier, downgrade, amount, s, hosp));
+                hitDms.getObject().hitAccepted(m.tornId(), m.discordId(), c.id()); // one message per contract (DM cleanup)
             }
             if (m.dmPref() != DmPref.HOURLY) {
                 hits.markNotified(hitId.get(), m.tornId());
@@ -371,7 +375,7 @@ public class HitService {
             return;
         }
         String target = name(f.defenderName(), f.defenderId());
-        dms.send(starter.discordId(), base(c, "HIT REJECTED").setColor(Panels.BAD)
+        dms.send(starter.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("HIT_REJECTED", java.time.Duration.ofHours(24)), base(c, "HIT REJECTED").setColor(Panels.BAD)
                 .setTitle("✖️  " + target + " [" + f.defenderId() + "] wasn't billed")
                 .setDescription(explain(reason, c, f) + "\n-# [Attack log ↗](" + ATTACK_LOG + f.code() + ")").build());
         int n = contracts.targetCount(c.id());
@@ -418,7 +422,8 @@ public class HitService {
         }
         Instant until = Instant.now().plus(Duration.ofMinutes(settings.claimCooldownMinutes()));
         hits.startCooldown(mercId, until);
-        mercs.findByTorn(mercId).ifPresent(m -> dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.WARN)
+        mercs.findByTorn(mercId).ifPresent(m -> dms.send(m.discordId(), com.familyx.mercbot.discord.Dms.Clean.when("COOLDOWN", "merc:" + mercId),
+                new EmbedBuilder().setColor(Panels.WARN)
                 .setAuthor("CLAIMS")
                 .setTitle("⏳  Claim cooldown until " + DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC)
                         .format(until) + " UTC")

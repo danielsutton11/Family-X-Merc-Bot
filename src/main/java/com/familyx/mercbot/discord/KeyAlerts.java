@@ -32,8 +32,11 @@ public class KeyAlerts {
     private final BotSettings settings;
     private final LeaderPanelService leaderPanel;
 
+    private final Dms dms;
+
     public KeyAlerts(JDA jda, Layout layout, ApiKeyRepository keys, FamilyFactionRepository factions,
-                     BotSettings settings, LeaderPanelService leaderPanel) {
+                     BotSettings settings, LeaderPanelService leaderPanel, Dms dms) {
+        this.dms = dms;
         this.jda = jda;
         this.layout = layout;
         this.keys = keys;
@@ -47,11 +50,9 @@ public class KeyAlerts {
         String where = event.kind() == ApiKeyRepository.Kind.LEADER
                 ? "Add a new one from **Keys** on the merc leader panel."
                 : "Add a new one from **My profile** in #merc-signup.";
-        jda.retrieveUserById(event.ownerDiscordId())
-                .flatMap(user -> user.openPrivateChannel())
-                .flatMap(dm -> dm.sendMessage("⚠️ Your Torn API key stopped working for the Family X Merc Bot ("
-                        + event.reason() + "). " + where))
-                .queue(null, e -> log.info("Couldn't DM key owner {}: {}", event.ownerDiscordId(), e.getMessage()));
+        // Deleted once they add a working key, or after 7 days (DM cleanup).
+        dms.sendText(event.ownerDiscordId(), com.familyx.mercbot.discord.Dms.Clean.whenOr("KEY_FAILED", "owner:" + event.ownerDiscordId(), java.time.Duration.ofDays(7)),
+                "⚠️ Your Torn API key stopped working for the Family X Merc Bot (" + event.reason() + "). " + where);
 
         if (event.kind() == ApiKeyRepository.Kind.LEADER && event.factionId() != null) {
             checkFactionMinimum(event.factionId());

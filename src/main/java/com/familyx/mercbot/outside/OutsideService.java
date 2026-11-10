@@ -292,7 +292,8 @@ public class OutsideService {
         feed.contract(now, "⏸️", "paused by a leader", "possible defensive merc service");
         audit.log(leader, "CONTRACT_PAUSED", "contract:" + c.id(), null, Map.of("reason", "defensive"),
                 "Paused **" + c.ref() + "** (possible defensive merc service)");
-        requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(), new EmbedBuilder()
+        requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(),
+                com.familyx.mercbot.discord.Dms.Clean.when("DEFENSIVE_PAUSE", "contract:" + c.id()), new EmbedBuilder()
                 .setColor(Panels.PRIVATE).setAuthor("CONTRACT " + c.ref()).setTitle("⏸️  Paused by a leader")
                 .setDescription("Another group seems to be putting your targets in hospital to protect them, so our "
                         + "hits wouldn't land. Your contract is paused; hits so far are still billed. Message leaders "

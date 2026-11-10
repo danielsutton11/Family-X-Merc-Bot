@@ -318,6 +318,7 @@ public class InvoiceService {
                 "Recorded " + Money.full(amount) + " for **" + c.ref() + "** (" + inv.status().toLowerCase() + ")");
         String author = "INVOICE · " + c.ref() + " · " + feed.targetName(c, contracts.targetCount(c.id())).toUpperCase();
         requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(), "PAID".equals(inv.status())
+                ? null : com.familyx.mercbot.discord.Dms.Clean.when("PART_PAID", "invoice:" + inv.id()), "PAID".equals(inv.status())
                 ? new EmbedBuilder().setColor(Panels.GOOD).setAuthor(author).setTitle("✅  Paid in full · thank you")
                 .setDescription(Money.full(inv.amountPaid()) + " received. Nothing more to pay on this invoice.").build()
                 : new EmbedBuilder().setColor(Panels.WARN).setAuthor(author).setTitle("🧾  Part payment received")
@@ -343,7 +344,8 @@ public class InvoiceService {
         owed.forEach((mercId, amount) -> mercs.findByTorn(mercId).filter(m -> m.dmPref() != DmPref.OFF)
                 .ifPresent(m -> {
                     int n = invoices.hitsOn(inv.id(), mercId);
-                    dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.GOOD)
+                    dms.send(m.discordId(), com.familyx.mercbot.discord.Dms.Clean.when("SHARES_OWED", "invoice:" + inv.id() + ":merc:" + mercId),
+                            new EmbedBuilder().setColor(Panels.GOOD)
                             .setAuthor(c.ref() + " · " + target + " · PAID")
                             .setTitle("💰  " + Money.full(amount) + " now owed to you")
                             .setDescription("The requester has paid. Your shares from " + n + (n == 1 ? " hit" : " hits")
@@ -375,7 +377,8 @@ public class InvoiceService {
     public void remind(Invoice inv, boolean withCard) {
         Contract c = contracts.find(inv.contractId()).orElseThrow();
         var requester = requesters.requester(c.requesterId());
-        requester.ifPresent(r -> dms.send(r.discordId(), new EmbedBuilder().setColor(Panels.WARN)
+        requester.ifPresent(r -> dms.send(r.discordId(), com.familyx.mercbot.discord.Dms.Clean.whenReplacing("OVERDUE", "invoice:" + inv.id()),
+                new EmbedBuilder().setColor(Panels.WARN)
                 .setAuthor("REMINDER · " + c.ref() + " · " + feed.targetName(c, contracts.targetCount(c.id())).toUpperCase())
                 .setTitle("⏰  " + Money.full(inv.due()) + " is overdue")
                 .setDescription("This invoice was due " + WHEN.format(inv.dueAt()) + " UTC. "

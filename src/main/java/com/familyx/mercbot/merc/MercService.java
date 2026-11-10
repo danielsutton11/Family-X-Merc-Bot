@@ -125,7 +125,7 @@ public class MercService {
                 : "➖  " + faction.get().name() + " doesn't have Hospitalization X (needed for Silver and Gold)");
 
         // 5. A DM gets through, since hit results and alerts arrive by DM.
-        boolean dmOk = dms.sendNow(discordId, new EmbedBuilder().setColor(Panels.GOOD)
+        boolean dmOk = dms.sendNow(discordId, com.familyx.mercbot.discord.Dms.Clean.after("DM_TEST", java.time.Duration.ofMinutes(1)), new EmbedBuilder().setColor(Panels.GOOD)
                 .setTitle("👋  DMs are working")
                 .setDescription("Hit results and alerts from Family X Mercs will arrive here.").build());
         if (!dmOk) {

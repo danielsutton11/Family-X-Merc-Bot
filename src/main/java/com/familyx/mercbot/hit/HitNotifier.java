@@ -55,7 +55,7 @@ public class HitNotifier {
                 if (list.size() > MAX_LINES) {
                     lines.append("-# +").append(list.size() - MAX_LINES).append(" more\n");
                 }
-                dms.send(m.get().discordId(), new EmbedBuilder().setColor(Panels.PRIVATE)
+                dms.send(m.get().discordId(), com.familyx.mercbot.discord.Dms.Clean.after("HOURLY", java.time.Duration.ofHours(24)), new EmbedBuilder().setColor(Panels.PRIVATE)
                         .setAuthor("YOUR HITS · " + HOUR.format(to.minus(1, ChronoUnit.HOURS)) + "–" + HOUR.format(to) + " UTC")
                         .setTitle("✅  " + list.size() + (list.size() == 1 ? " hit" : " hits") + " accepted · "
                                 + Money.full(total) + " to you")

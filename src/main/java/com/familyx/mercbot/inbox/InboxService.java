@@ -164,7 +164,8 @@ public class InboxService {
         repo.add(c.id(), false, leaderId, leaderName, text);
         Optional<Requester> r = requesters.requester(c.requesterId());
         String quoted = waiting.isEmpty() ? null : waiting.getLast().text();
-        r.ifPresent(x -> dms.send(x.discordId(), new EmbedBuilder().setColor(Panels.GOOD)
+        r.ifPresent(x -> dms.send(x.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("LEADER_REPLY", java.time.Duration.ofDays(30)),
+                new EmbedBuilder().setColor(Panels.GOOD)
                 .setAuthor("REPLY FROM LEADERS · " + c.ref())
                 .setTitle("✉️  " + leaderName + " replied")
                 .setDescription(text + (quoted == null ? "" : "\n\n-# You wrote: \"" + quote(quoted, 120) + "\""))

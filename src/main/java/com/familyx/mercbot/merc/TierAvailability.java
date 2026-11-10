@@ -97,6 +97,6 @@ public class TierAvailability {
             return;
         }
         guild.findMembersWithRoles(managers).onSuccess(members ->
-                members.forEach(m -> dms.send(m.getIdLong(), embed)));
+                members.forEach(m -> dms.send(m.getIdLong(), com.familyx.mercbot.discord.Dms.Clean.after("TIER_SWITCH", java.time.Duration.ofHours(24)), embed)));
     }
 }

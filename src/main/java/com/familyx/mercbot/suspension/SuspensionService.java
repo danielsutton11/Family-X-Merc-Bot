@@ -186,7 +186,7 @@ public class SuspensionService {
                 why == null ? Map.of("length", length.label) : Map.of("length", length.label, "reason", why),
                 "Suspended claiming for **" + name(s) + "** (" + length.label.toLowerCase() + ")"
                         + (why == null ? "" : ": " + why));
-        dms.send(s.discordId(), new EmbedBuilder().setColor(Panels.BAD).setAuthor("CLAIMS")
+        dms.send(s.discordId(), com.familyx.mercbot.discord.Dms.Clean.when("SUSPENDED", "merc:" + mercId), new EmbedBuilder().setColor(Panels.BAD).setAuthor("CLAIMS")
                 .setTitle("⛔  Claiming suspended " + until(until, indefinite))
                 .setDescription("A leader suspended your claims" + (why == null ? "." : ": \"" + why + "\".")
                         + " Attack still works, so you can keep earning without reserving targets.")
@@ -203,7 +203,7 @@ public class SuspensionService {
         State s = before.get();
         audit.log(by, "CLAIMS_LIFTED", "merc:" + mercId, null, null, (by == null ? "Claim suspension ended for **"
                 : "Lifted the claim suspension for **") + name(s) + "**");
-        dms.send(s.discordId(), new EmbedBuilder().setColor(Panels.GOOD).setAuthor("CLAIMS")
+        dms.send(s.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("CLAIM_AGAIN", java.time.Duration.ofHours(24)), new EmbedBuilder().setColor(Panels.GOOD).setAuthor("CLAIMS")
                 .setTitle("✅  You can claim again").setDescription("Your claim suspension has ended.").build());
         note("✅ " + name(s) + "'s claim suspension " + (by == null ? "ended" : "was lifted by <@" + by + ">") + " ("
                 + lengthLabel(s).replace("for ", "") + ", set by "

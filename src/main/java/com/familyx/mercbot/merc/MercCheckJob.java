@@ -61,7 +61,8 @@ public class MercCheckJob {
                 changed++;
             }
             if (!result.lost().isEmpty()) {
-                dms.send(after.discordId(), lapseEmbed(before, after, perkBefore, result), profileButton());
+                dms.send(after.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("LAPSED", java.time.Duration.ofDays(7)), lapseEmbed(before, after, perkBefore, result),
+                        profileButton());
             }
         }
         availability.evaluate();
@@ -73,7 +74,7 @@ public class MercCheckJob {
     public void availabilityExpiry() {
         for (Merc m : mercs.availabilityExpired()) {
             mercs.setAvailability(m.tornId(), true, null);
-            dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.GOOD).setAuthor("FAMILY X MERCS")
+            dms.send(m.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("AVAIL_BACK", java.time.Duration.ofHours(1)), new EmbedBuilder().setColor(Panels.GOOD).setAuthor("FAMILY X MERCS")
                     .setTitle("🟢  Your availability is back on")
                     .setDescription("The time you set has run out, so you'll get pings again.").build(),
                     profileButton());

@@ -321,7 +321,8 @@ public class LeaderContractsHandler implements InteractionHandler {
                        String toRequester) {
         feed.contract(c, emoji, happened, detail);
         audit.log(leader, auditAction, "contract:" + c.id(), null, null, capitalise(happened) + ": **" + c.ref() + "**");
-        requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(), new EmbedBuilder()
+        requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("LEADER_ACTION", java.time.Duration.ofHours(24)),
+                new EmbedBuilder()
                 .setColor(Panels.PRIVATE).setAuthor("CONTRACT " + c.ref())
                 .setTitle(emoji + "  " + capitalise(happened)).setDescription(toRequester).build()));
         panels.refresh(c.id());

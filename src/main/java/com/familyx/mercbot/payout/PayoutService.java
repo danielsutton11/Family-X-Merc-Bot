@@ -164,7 +164,7 @@ public class PayoutService {
                 "Credited " + Money.full(line.amount()) + " to **" + PayoutEmbeds.who(line) + "** ("
                         + faction + (by == null ? ", seen in faction news)" : ", marked by hand)"));
         mercs.findByTorn(line.mercId()).filter(m -> m.dmPref() != DmPref.OFF).ifPresent(m ->
-                dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.GOOD)
+                dms.send(m.discordId(), com.familyx.mercbot.discord.Dms.Clean.after("CREDITED", java.time.Duration.ofDays(7)), new EmbedBuilder().setColor(Panels.GOOD)
                         .setAuthor("CREDITED · " + faction.toUpperCase())
                         .setTitle("💰  " + Money.full(line.amount()) + " added to your faction balance")
                         .setDescription(refs.hits() + (refs.hits() == 1 ? " hit" : " hits")

@@ -129,7 +129,7 @@ public class RequestService {
                     + (r.blacklistReason() == null ? "" : " Reason: " + r.blacklistReason()));
         }
         if (r == null || r.dmOkAt() == null || r.dmOkAt().isBefore(Instant.now().minus(DM_RECHECK))) {
-            boolean ok = dms.sendNow(discordId, new EmbedBuilder().setColor(Panels.GOOD)
+            boolean ok = dms.sendNow(discordId, com.familyx.mercbot.discord.Dms.Clean.after("DM_TEST", java.time.Duration.ofMinutes(1)), new EmbedBuilder().setColor(Panels.GOOD)
                     .setTitle("👋  DMs are working")
                     .setDescription("Your contract control panel, invoices and leader replies will arrive here.").build());
             if (!ok) {

@@ -107,6 +107,7 @@ public class ApprovalHandler implements InteractionHandler {
                 approve ? null : Map.of("reason", reason),
                 (approve ? "Approved **" : "Rejected **") + c.ref() + "**" + (approve ? "" : ": " + reason));
         requesters.requester(c.requesterId()).ifPresent(r -> dms.send(r.discordId(), approve
+                ? com.familyx.mercbot.discord.Dms.Clean.after("APPROVED", java.time.Duration.ofHours(1)) : com.familyx.mercbot.discord.Dms.Clean.after("REJECTED", java.time.Duration.ofDays(7)), approve
                 ? new EmbedBuilder().setColor(Panels.GOOD).setAuthor("CONTRACT " + c.ref())
                 .setTitle("✅  Your contract is approved and live")
                 .setDescription("Updates on your contract will arrive here.").build()
