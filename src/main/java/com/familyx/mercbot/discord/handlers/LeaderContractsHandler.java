@@ -128,9 +128,9 @@ public class LeaderContractsHandler implements InteractionHandler {
                     acted(c, user, "⏹️", "ended by a leader", feed.hitsLanded(c), "CONTRACT_ENDED",
                             "A leader ended your contract. No more hits will count; you'll get the invoice for the "
                                     + "hits made.");
-                    invoices.getObject().issueFinal(reload(c));
+                    invoices.getObject().contractEnded(reload(c));
                 }
-                contract(reload(c), "⏹️ Ended. Any hits are invoiced.").show(hook);
+                contract(reload(c), "⏹️ Ended. The invoice follows once the last hits are in Torn's log.").show(hook);
             });
             case "cancelyes" -> withContract(event, id, c -> {
                 if (contracts.hitStats(c.id()).accepted() > 0) {

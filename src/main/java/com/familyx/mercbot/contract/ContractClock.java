@@ -68,7 +68,7 @@ public class ContractClock {
         for (Contract c : contracts.pastEnd()) {
             if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "COMPLETED")) {
                 feed.contract(c, "✅", "completed", "end time reached · " + feed.hitsLanded(c));
-                invoices.getObject().issueFinal(c);
+                invoices.getObject().contractEnded(c);
                 changed = true;
             }
         }
@@ -76,7 +76,7 @@ public class ContractClock {
             if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "COMPLETED")) {
                 int[] p = contracts.hitProgress(c.id());
                 feed.contract(c, "✅", "completed", "all " + p[1] + " hits done");
-                invoices.getObject().issueFinal(c);
+                invoices.getObject().contractEnded(c);
                 changed = true;
             }
         }

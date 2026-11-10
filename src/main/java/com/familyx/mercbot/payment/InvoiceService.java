@@ -95,8 +95,38 @@ public class InvoiceService {
 
     // ------------------------------------------------------------------ issuing
 
-    /** The contract has finished: invoice every hit not yet invoiced. Nothing to pay → no invoice. */
-    public void issueFinal(Contract c) {
+    /**
+     * A Torn fight lasts at most 5 minutes, so an attack started before the end has finished by
+     * then. A little over that covers the attack log catching up.
+     */
+    static final java.time.Duration LONGEST_FIGHT = java.time.Duration.ofSeconds(330);
+
+    /**
+     * The contract has ended (end time, all hits done, or End now). The final invoice waits until
+     * every family faction's attack log has been read past the last moment a fight started before
+     * the end could finish, so it never goes out short.
+     */
+    public void contractEnded(Contract c) {
+        contracts.setFinalPending(c.id());
+        panels.refresh(c.id());
+    }
+
+    /** Called after each attack-log pass with the point every faction's log has been read up to. */
+    public void issueReadyFinals(Instant readThrough) {
+        for (Contract c : contracts.finalsReady(readThrough.minus(LONGEST_FIGHT))) {
+            if (contracts.claimFinal(c.id())) {
+                try {
+                    issueFinal(c);
+                } catch (Exception e) {
+                    contracts.setFinalPending(c.id()); // try again next pass
+                    log.warn("Final invoice for {} failed: {}", c.ref(), e.getMessage());
+                }
+            }
+        }
+    }
+
+    /** Invoices every hit not yet invoiced. Nothing to pay → no invoice. */
+    private void issueFinal(Contract c) {
         issue(c, "FINAL", null, Instant.now());
         try {
             reputation.getObject().completedIfDone(c.id()); // nothing left to pay: +completed (scope doc 6.5)
@@ -134,18 +164,9 @@ public class InvoiceService {
         long id = invoices.create(c.id(), kind, total, discount, payee.map(Payee::tornId).orElse(null),
                 payee.map(Payee::name).orElse(null), due, periodStart, periodEnd, hitIds);
         Invoice inv = invoices.find(id).orElseThrow();
-        List<Line> lines = invoices.lines(id);
-        requesters.requester(c.requesterId()).ifPresent(r -> {
-            MessageEmbed embed = invoiceEmbed(c, inv, lines);
-            FileUpload file = FileUpload.fromData(csv(lines).getBytes(StandardCharsets.UTF_8),
-                    c.ref() + ("INTERIM".equals(inv.kind()) ? "-interim-" + inv.id() : "") + "-invoice.csv");
-            Button message = Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
-                    .withEmoji(Emoji.fromUnicode("✉️"));
-            if (payee.isPresent()) {
-                dms.send(r.discordId(), embed, file, ActionRow.of(Button.link(TRADE + payee.get().tornId(),
-                        "Start trade with " + payee.get().name() + " ↗").withEmoji(Emoji.fromUnicode("💸")), message));
-            } else {
-                dms.send(r.discordId(), embed, file, ActionRow.of(message));
+        deliver(c, inv, ok -> {
+            if (!ok) {
+                undelivered(c, inv, "invoice");
             }
         });
         if (payee.isEmpty()) {
@@ -221,6 +242,113 @@ public class InvoiceService {
         }
         boolean quote = v.contains(",") || v.contains("\"") || v.contains("\n");
         return quote ? "\"" + v.replace("\"", "\"\"") + "\"" : v;
+    }
+
+    /** DMs the invoice and its spreadsheet to the requester; {@code done} says whether it got through. */
+    private void deliver(Contract c, Invoice inv, java.util.function.Consumer<Boolean> done) {
+        var requester = requesters.requester(c.requesterId());
+        if (requester.isEmpty()) {
+            done.accept(false);
+            return;
+        }
+        List<Line> lines = invoices.lines(inv.id());
+        MessageEmbed embed = invoiceEmbed(c, inv, lines);
+        FileUpload file = FileUpload.fromData(csv(lines).getBytes(StandardCharsets.UTF_8),
+                c.ref() + ("INTERIM".equals(inv.kind()) ? "-interim-" + inv.id() : "") + "-invoice.csv");
+        Button message = Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
+                .withEmoji(Emoji.fromUnicode("✉️"));
+        ActionRow row = inv.payeeTornId() == null ? ActionRow.of(message)
+                : ActionRow.of(Button.link(TRADE + inv.payeeTornId(), "Start trade with " + inv.payeeName() + " ↗")
+                .withEmoji(Emoji.fromUnicode("💸")), message);
+        dms.send(requester.get().discordId(), embed, file, done, row);
+    }
+
+    // ------------------------------------------------------------------ invoice not delivered
+
+    /** Kept a week at most; an hour once a retry gets through. */
+    static final Duration UNDELIVERED_KEEP = Duration.ofDays(7);
+    static final Duration DELIVERED_KEEP = Duration.ofHours(1);
+
+    /** The requester couldn't be DMed: one card per invoice in the leaders channel. */
+    private void undelivered(Contract c, Invoice inv, String what) {
+        if (invoices.undeliveredCard(inv.id()).isPresent()) {
+            return; // already showing
+        }
+        Long card = postCard(undeliveredEmbed(c, invoices.find(inv.id()).orElse(inv), what, null),
+                undeliveredRow(c, inv.id()));
+        if (card != null) {
+            invoices.setUndeliveredCard(inv.id(), card, Instant.now().plus(UNDELIVERED_KEEP));
+        }
+    }
+
+    private MessageEmbed undeliveredEmbed(Contract c, Invoice inv, String what, String note) {
+        String who = requesters.requester(c.requesterId()).map(r -> r.name() + " [" + r.tornId() + "]").orElse("the requester");
+        return new EmbedBuilder().setColor(Panels.BAD).setAuthor("INVOICE NOT DELIVERED")
+                .setTitle("📭  " + c.ref() + " · " + Money.full(inv.due()))
+                .setDescription("The bot couldn't DM the " + what + " to **" + who + "**. They may have turned off DMs "
+                        + "or left the server. It's still due " + WHEN.format(inv.dueAt()) + " UTC and will go overdue "
+                        + "as normal." + (note == null ? "" : "\n\n" + note))
+                .build();
+    }
+
+    private static ActionRow undeliveredRow(Contract c, long invoiceId) {
+        return ActionRow.of(
+                Button.primary(CustomId.of("pay", "resend", invoiceId), "Try again").withEmoji(Emoji.fromUnicode("🔁")),
+                Button.secondary(CustomId.of("reqs", "open", c.requesterId()), "Open requester")
+                        .withEmoji(Emoji.fromUnicode("👤")),
+                Button.secondary(CustomId.of("pay", "handled", invoiceId), "Handled").withEmoji(Emoji.fromUnicode("✔️")));
+    }
+
+    /** Try again: resends the invoice; the card turns green and goes in an hour, or says it failed again. */
+    public void resend(long invoiceId, long by) {
+        Invoice inv = invoices.find(invoiceId).orElseThrow();
+        Contract c = contracts.find(inv.contractId()).orElseThrow();
+        Optional<Long> card = invoices.undeliveredCard(invoiceId);
+        deliver(c, inv, ok -> {
+            String at = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC).format(Instant.now());
+            if (ok) {
+                audit.log(by, "INVOICE_RESENT", "invoice:" + invoiceId, null, null,
+                        "Resent the invoice for **" + c.ref() + "** to the requester");
+                card.ifPresent(id -> {
+                    editCard(id, new EmbedBuilder().setColor(Panels.GOOD).setAuthor("INVOICE NOT DELIVERED")
+                            .setTitle("✅  " + c.ref() + " · delivered on retry")
+                            .setDescription("-# Sent " + at + " UTC by <@" + by + ">. This card deletes itself in 1 hour.")
+                            .build(), List.of());
+                    invoices.setUndeliveredCard(invoiceId, id, Instant.now().plus(DELIVERED_KEEP));
+                });
+            } else {
+                card.ifPresent(id -> editCard(id, undeliveredEmbed(c, inv, "invoice",
+                        "-# Tried again at " + at + " UTC by <@" + by + ">: still couldn't DM them."),
+                        List.of(undeliveredRow(c, invoiceId))));
+            }
+        });
+    }
+
+    /** Handled, or the invoice was paid: the card goes now. */
+    public void clearUndelivered(long invoiceId) {
+        invoices.undeliveredCard(invoiceId).ifPresent(this::deleteCard);
+        invoices.setUndeliveredCard(invoiceId, null, null);
+    }
+
+    @Scheduled(fixedDelay = 5 * 60_000, initialDelay = 180_000)
+    public void tidyUndeliveredCards() {
+        try {
+            for (InvoiceRepository.CardDue d : invoices.undeliveredCardsDue()) {
+                deleteCard(d.cardId());
+                invoices.setUndeliveredCard(d.invoiceId(), null, null);
+            }
+        } catch (Exception e) {
+            log.warn("Couldn't tidy undelivered-invoice cards: {}", e.getMessage());
+        }
+    }
+
+    private void editCard(long messageId, MessageEmbed embed, List<ActionRow> rows) {
+        JDA api = jda.getIfAvailable();
+        if (api == null) {
+            return;
+        }
+        layout.get(Layout.CH_LEADERS).map(api::getTextChannelById).ifPresent(ch ->
+                ch.editMessageEmbedsById(messageId, embed).setComponents(rows).queue(null, ignored -> { }));
     }
 
     // ------------------------------------------------------------------ deposits and payments
@@ -333,6 +461,7 @@ public class InvoiceService {
             if (inv.overdueCardId() != null) {
                 deleteCard(inv.overdueCardId());
             }
+            clearUndelivered(inv.id());
         }
         panels.refresh(c.id());
         return inv;
@@ -385,7 +514,11 @@ public class InvoiceService {
                         + (inv.payeeTornId() == null ? "A Capacity X leader will tell you who to pay"
                         : "[Start a trade with " + inv.payeeName() + " [" + inv.payeeTornId() + "]](" + TRADE
                         + inv.payeeTornId() + ") in Torn and put it in") + ".")
-                .build(), ActionRow.of(Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
+                .build(), ok -> {
+                    if (!ok) {
+                        undelivered(c, inv, "overdue reminder");
+                    }
+                }, ActionRow.of(Button.secondary(CustomId.of("msg", "write", c.id()), "Message leaders")
                 .withEmoji(Emoji.fromUnicode("✉️")))));
         Long card = null;
         if (withCard) {

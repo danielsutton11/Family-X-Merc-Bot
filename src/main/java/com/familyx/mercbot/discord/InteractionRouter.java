@@ -87,7 +87,8 @@ public class InteractionRouter extends ListenerAdapter {
 
     private void dispatch(IReplyCallback event, InteractionHandler handler, Work work) {
         if (!access.allows(handler.access(), event.getMember())) {
-            event.reply("Sorry, only leaders can use this.").setEphemeral(true)
+            event.reply(handler.access() == Access.Level.MERC_MANAGER ? "Only Merc Managers can use this."
+                            : "Only faction leaders and Merc Managers can use this.").setEphemeral(true)
                     .queue(hook -> AutoDismiss.after(hook, AutoDismiss.SHORT));
             return;
         }

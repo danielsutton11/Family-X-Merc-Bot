@@ -60,7 +60,7 @@ public class AlertSettingsHandler implements InteractionHandler {
                                 settings.urgentPings() + " / " + settings.urgentPingGapMinutes(), "e.g. 3 / 10"),
                         pair("defensive", "Defensive service trigger: count / minutes",
                                 settings.defensiveCount() + " / " + settings.defensiveMinutes(), "e.g. 3 / 30"),
-                        Label.of("Availability-off reminder: at most every … hours", TextInput.create("avail",
+                        Label.of("Availability-off reminder gap (hours)", TextInput.create("avail",
                                 TextInputStyle.SHORT).setRequired(true).setMaxLength(3).setPlaceholder("e.g. 6")
                                 .setValue(Integer.toString(settings.availabilityOffHours())).build()))
                 .build()).queue();

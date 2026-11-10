@@ -193,6 +193,30 @@ public class ContractRepository {
         jdbc.sql("UPDATE contract SET started_announced = TRUE WHERE id = ?").param(id).update();
     }
 
+    // ---- final invoice hold: sent once every attack started before the end is in the attack logs
+
+    public void setFinalPending(long id) {
+        jdbc.sql("UPDATE contract SET final_pending = TRUE WHERE id = ?").param(id).update();
+    }
+
+    /** Ended contracts waiting for their final invoice, whose attacks have all finished by {@code readThrough}. */
+    public List<Contract> finalsReady(java.time.Instant lastFightEndsBy) {
+        return jdbc.sql("""
+                        SELECT * FROM contract WHERE final_pending AND ended_at IS NOT NULL AND ended_at <= ?""")
+                .param(java.sql.Timestamp.from(lastFightEndsBy)).query(this::map).list();
+    }
+
+    /** Takes the contract off the waiting list; false if another pass already did. */
+    public boolean claimFinal(long id) {
+        return jdbc.sql("UPDATE contract SET final_pending = FALSE WHERE id = ? AND final_pending").param(id).update() == 1;
+    }
+
+    /** When the contract ended, if its final invoice is still waiting. */
+    public java.util.Optional<java.time.Instant> finalPendingSince(long id) {
+        return jdbc.sql("SELECT ended_at FROM contract WHERE id = ? AND final_pending AND ended_at IS NOT NULL")
+                .param(id).query(java.sql.Timestamp.class).optional().map(java.sql.Timestamp::toInstant);
+    }
+
     /** Duration contracts whose end time has passed. */
     public List<Contract> pastEnd() {
         return jdbc.sql("""

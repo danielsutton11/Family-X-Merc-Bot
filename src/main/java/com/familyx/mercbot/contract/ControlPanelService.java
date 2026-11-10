@@ -258,7 +258,13 @@ public class ControlPanelService {
         eb.addField("💰  Bill so far", Money.full(stats.billed()) + "\n-# " + Money.full(perHit) + " per hit"
                 + Panels.GAP, true);
         var invoiceList = invoiceLog.forContract(c.id());
-        if (!invoiceList.isEmpty()) {
+        var finalWaiting = contracts.finalPendingSince(c.id());
+        if (finalWaiting.isPresent()) {
+            boolean slow = finalWaiting.get().isBefore(Instant.now().minus(java.time.Duration.ofMinutes(10)));
+            eb.addField("🧾  Invoice", (slow ? "Final invoice waiting for attack logs\n-# a faction's attack log can't be "
+                    + "read yet; it goes out once it can" : "Final invoice in a few minutes\n-# once every attack "
+                    + "started before the end is in Torn's log") + Panels.GAP, true);
+        } else if (!invoiceList.isEmpty()) {
             long total = invoiceList.stream().mapToLong(i -> i.total()).sum();
             long paid = invoiceList.stream().mapToLong(i -> i.amountPaid()).sum();
             var latest = invoiceList.get(invoiceList.size() - 1);

@@ -450,4 +450,41 @@ class UnitTests {
         assertEquals(Optional.empty(), BoardRules.alsoOn(target("Okay", true, "Online", 1, skip, now), tiers, false));
         assertEquals(Optional.empty(), BoardRules.alsoOn(target("Okay", true, "Online", 1, allow, now), tiers, true));
     }
+
+    @Test
+    void keyPoolSlowsAt80AndRecoversAfter10CalmMinutes() {
+        Instant t = Instant.parse("2026-11-10T12:00:00Z");
+        var s0 = com.familyx.mercbot.keys.KeyPoolMonitor.next(false, null, 0.79, t);
+        assertEquals(false, s0.busy());
+        var s1 = com.familyx.mercbot.keys.KeyPoolMonitor.next(false, null, 0.80, t);
+        assertEquals(true, s1.busy());
+        var s2 = com.familyx.mercbot.keys.KeyPoolMonitor.next(true, null, 0.70, t);
+        assertEquals(true, s2.busy());
+        assertNull(s2.calmSince());
+        var s3 = com.familyx.mercbot.keys.KeyPoolMonitor.next(true, null, 0.50, t);
+        assertEquals(true, s3.busy());
+        assertEquals(t, s3.calmSince());
+        var s4 = com.familyx.mercbot.keys.KeyPoolMonitor.next(true, t, 0.50, t.plus(Duration.ofMinutes(9)));
+        assertEquals(true, s4.busy());
+        var s5 = com.familyx.mercbot.keys.KeyPoolMonitor.next(true, t, 0.50, t.plus(Duration.ofMinutes(10)));
+        assertEquals(false, s5.busy());
+        var s6 = com.familyx.mercbot.keys.KeyPoolMonitor.next(true, t, 0.65, t.plus(Duration.ofMinutes(5)));
+        assertNull(s6.calmSince()); // back above 60%: the calm clock restarts
+    }
+
+    @Test
+    void boardAndBillingSettingsAreChecked() {
+        assertNull(com.familyx.mercbot.discord.handlers.BoardSettingsHandler.check(5, 60, 0, 60));
+        assertEquals("Fast check should be 5 to 60 seconds.",
+                com.familyx.mercbot.discord.handlers.BoardSettingsHandler.check(4, 60, 2, 60));
+        assertEquals("Slow check can't be faster than the fast check.",
+                com.familyx.mercbot.discord.handlers.BoardSettingsHandler.check(60, 30, 2, 60));
+        assertEquals(new BigDecimal("2.5"), com.familyx.mercbot.discord.handlers.BillingSettingsHandler.parsePercent("2,5%"));
+        assertEquals(new BigDecimal("100"), com.familyx.mercbot.discord.handlers.BillingSettingsHandler.parsePercent("100.0"));
+        assertNull(com.familyx.mercbot.discord.handlers.BillingSettingsHandler.parsePercent("lots"));
+        assertNull(com.familyx.mercbot.discord.handlers.BillingSettingsHandler.check(BigDecimal.ONE, new BigDecimal("75"),
+                new BigDecimal("100")));
+        assertEquals("Faction cut should be 0 to 50%.", com.familyx.mercbot.discord.handlers.BillingSettingsHandler.check(
+                new BigDecimal("51"), new BigDecimal("75"), new BigDecimal("100")));
+    }
 }

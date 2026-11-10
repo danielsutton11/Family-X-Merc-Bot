@@ -50,6 +50,10 @@ public class BotSettings {
 
     // ---- money (scope doc 7.5)
 
+    public static final String MONEY_CUT = "money.factionCutPct";
+    public static final String MONEY_STARTER = "money.starterPct";
+    public static final String MONEY_CLAIMER = "money.claimerNoShowPct";
+
     public java.math.BigDecimal factionCutPct() {
         return repo.get("money.factionCutPct", java.math.BigDecimal.class).orElse(java.math.BigDecimal.ONE);
     }
@@ -248,6 +252,33 @@ public class BotSettings {
 
     public int repUnpaidWeek() {
         return repo.get(REP_UNPAID_WEEK, Integer.class).orElse(25);
+    }
+
+    // ---- boards (scope doc 5.3, 7.2, 10.4; Settings → Boards)
+
+    public static final String BOARD_FAST_S = "boards.fastCheckSeconds";
+    public static final String BOARD_SLOW_S = "boards.slowCheckSeconds";
+    public static final String BOARD_GROUP_MIN = "boards.pingGroupMinutes";
+    public static final String BOARD_WAR_S = "boards.warLockSeconds";
+
+    /** Targets on a board or about to come out: checked this often. */
+    public int boardFastSeconds() {
+        return repo.get(BOARD_FAST_S, Integer.class).orElse(10);
+    }
+
+    /** Everything else. */
+    public int boardSlowSeconds() {
+        return repo.get(BOARD_SLOW_S, Integer.class).orElse(60);
+    }
+
+    /** TARGETS BACK pings within this window are combined; 0 pings each on its own. */
+    public int pingGroupMinutes() {
+        return repo.get(BOARD_GROUP_MIN, Integer.class).orElse(2);
+    }
+
+    /** How long after a ranked-war target leaves hospital before outsiders can attack. */
+    public int warLockSeconds() {
+        return repo.get(BOARD_WAR_S, Integer.class).orElse(60);
     }
 
     public void set(String key, Object value, long changedBy) {

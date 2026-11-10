@@ -36,8 +36,13 @@ public class AttackPoller {
     private final HitService hits;
     private final SettingsRepository settings;
     private final Map<Long, Instant> lastWarned = new ConcurrentHashMap<>();
+    /** Per faction: every fight that ended before this has been read and processed. */
+    private final Map<Long, Instant> readThrough = new ConcurrentHashMap<>();
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.payment.InvoiceService> invoices;
 
-    public AttackPoller(FamilyFactionRepository factions, TornKeyPool pool, HitService hits, SettingsRepository settings) {
+    public AttackPoller(FamilyFactionRepository factions, TornKeyPool pool, HitService hits, SettingsRepository settings,
+                        org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.payment.InvoiceService> invoices) {
+        this.invoices = invoices;
         this.factions = factions;
         this.pool = pool;
         this.hits = hits;
@@ -49,9 +54,13 @@ public class AttackPoller {
         Instant started = Instant.now();
         boolean anyRead = false;
         Map<Long, TornAttack> combined = new java.util.LinkedHashMap<>();
-        for (FamilyFaction f : factions.findActive()) {
+        List<Long> complete = new java.util.ArrayList<>();
+        List<FamilyFaction> active = factions.findActive();
+        for (FamilyFaction f : active) {
             try {
-                poll(f.tornFactionId(), combined);
+                if (poll(f.tornFactionId(), combined)) {
+                    complete.add(f.tornFactionId());
+                }
                 anyRead = true;
             } catch (Exception e) {
                 Instant last = lastWarned.get(f.tornFactionId());
@@ -65,6 +74,16 @@ public class AttackPoller {
         // Fights that only just ended wait a pass, so every faction's log has them; the overlap re-reads them.
         Instant settled = started.minusSeconds(20);
         hits.process(new java.util.ArrayList<>(combined.values()), settled);
+        complete.forEach(f -> readThrough.put(f, settled));
+        readThrough.keySet().retainAll(active.stream().map(FamilyFaction::tornFactionId).toList());
+        Instant through = readThrough(active.size());
+        if (through != null) {
+            try {
+                invoices.getObject().issueReadyFinals(through);
+            } catch (Exception e) {
+                log.warn("Couldn't send final invoices: {}", e.getMessage());
+            }
+        }
         if (anyRead) {
             // Claims whose lock ended more than a fight-length ago are settled. A faction whose log can't be
             // read (no leader key with faction access) doesn't hold everyone else's claims up.
@@ -72,22 +91,37 @@ public class AttackPoller {
         }
     }
 
-    private void poll(long factionId, Map<Long, TornAttack> combined) throws Exception {
+    /**
+     * The point every family faction's attack log has been read up to, or null while one of them
+     * hasn't been read in full yet (no key, Torn errors, or a backlog bigger than one pass).
+     */
+    private Instant readThrough(int factionCount) {
+        if (readThrough.size() < factionCount) {
+            return null;
+        }
+        return readThrough.values().stream().min(Instant::compareTo).orElse(null);
+    }
+
+    /** Reads one faction's log into {@code combined}; true if it was read right up to now. */
+    private boolean poll(long factionId, Map<Long, TornAttack> combined) throws Exception {
         String key = "attacks.cursor." + factionId;
         long cursor = settings.get(key, Long.class).orElse(Instant.now().getEpochSecond() - 120);
         long from = Math.max(0, cursor - OVERLAP_S);
         long newest = cursor;
+        boolean complete = false;
         for (int page = 0; page < MAX_PAGES; page++) {
             JsonNode res = pool.call(Scope.faction(factionId), "/faction/attacks",
                     Map.of("from", Long.toString(from), "sort", "ASC", "limit", Integer.toString(PAGE)));
             List<TornAttack> batch = TornAttack.parse(res.path("attacks"));
             if (batch.isEmpty()) {
+                complete = true;
                 break;
             }
             batch.forEach(a -> combined.putIfAbsent(a.id(), a));
             long last = batch.stream().mapToLong(a -> a.started().getEpochSecond()).max().orElse(from);
             newest = Math.max(newest, last);
             if (batch.size() < PAGE || last <= from) {
+                complete = true;
                 break;
             }
             from = last;
@@ -95,5 +129,6 @@ public class AttackPoller {
         if (newest != cursor) {
             settings.put(key, newest, null);
         }
+        return complete;
     }
 }

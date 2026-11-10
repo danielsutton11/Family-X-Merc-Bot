@@ -96,6 +96,50 @@ public class Dms {
                 .queue(null, e -> log.info("Couldn't DM {}: {}", discordId, e.getMessage()));
     }
 
+    /**
+     * As {@link #send(long, Clean, MessageEmbed, ActionRow...)}, then {@code done} with true once
+     * delivered or false if Discord refused (DMs off, or no longer in the server).
+     */
+    public void send(long discordId, Clean clean, MessageEmbed embed, java.util.function.Consumer<Boolean> done,
+                     ActionRow... rows) {
+        jda.retrieveUserById(discordId)
+                .flatMap(user -> user.openPrivateChannel())
+                .flatMap(dm -> dm.sendMessage(new MessageCreateBuilder().setEmbeds(embed)
+                        .setComponents(List.of(rows)).build()))
+                .queue(m -> {
+                    track(discordId, m, clean);
+                    later(done, true);
+                }, e -> {
+                    log.info("Couldn't DM {}: {}", discordId, e.getMessage());
+                    later(done, false);
+                });
+    }
+
+    /** The embed, then its file straight after (both kept); {@code done} as above. */
+    public void send(long discordId, MessageEmbed embed, net.dv8tion.jda.api.utils.FileUpload file,
+                     java.util.function.Consumer<Boolean> done, ActionRow... rows) {
+        jda.retrieveUserById(discordId)
+                .flatMap(user -> user.openPrivateChannel())
+                .flatMap(dm -> dm.sendMessage(new MessageCreateBuilder().setEmbeds(embed)
+                                .setComponents(List.of(rows)).build())
+                        .flatMap(sent -> dm.sendFiles(file)))
+                .queue(m -> later(done, true), e -> {
+                    log.info("Couldn't DM {}: {}", discordId, e.getMessage());
+                    later(done, false);
+                });
+    }
+
+    /** Off JDA's callback thread, where waiting on Discord (complete()) isn't allowed. */
+    private static void later(java.util.function.Consumer<Boolean> done, boolean ok) {
+        Thread.ofVirtual().start(() -> {
+            try {
+                done.accept(ok);
+            } catch (Exception e) {
+                log.warn("DM follow-up failed: {}", e.getMessage());
+            }
+        });
+    }
+
     /** Sends and waits; returns false if the DM couldn't be delivered (used as the sign-up DM check). */
     public boolean sendNow(long discordId, MessageEmbed embed) {
         return sendNow(discordId, null, embed);

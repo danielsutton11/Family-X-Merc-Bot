@@ -36,17 +36,17 @@ public class SettingsHandler implements InteractionHandler {
                         .setColor(Panels.LEADER)
                         .setAuthor("MERC MANAGERS")
                         .setTitle("⚙️  Settings")
-                        .setDescription("Pick a group to change.\n-# Greyed-out groups arrive in later build phases.")
+                        .setDescription("Pick a group to change.")
                         .build(),
                 ActionRow.of(
                         Button.primary(CustomId.of("factions", "view"), "Factions").withEmoji(Emoji.fromUnicode("🏰")),
                         Button.primary(CustomId.of("reqdef", "view"), "Requests").withEmoji(Emoji.fromUnicode("📝")),
                         Button.primary(CustomId.of("tiers", "view"), "Tiers").withEmoji(Emoji.fromUnicode("🏷️")),
-                        Button.secondary(CustomId.of("soon", "3", "boards"), "Boards").asDisabled(),
+                        Button.primary(CustomId.of("boardset", "view"), "Boards").withEmoji(Emoji.fromUnicode("📋")),
                         Button.primary(CustomId.of("repset", "view"), "Reputation").withEmoji(Emoji.fromUnicode("⭐"))),
                 ActionRow.of(
                         Button.primary(CustomId.of("claimset", "view"), "Claims").withEmoji(Emoji.fromUnicode("🔒")),
-                        Button.secondary(CustomId.of("soon", "4", "billing"), "Billing").asDisabled(),
+                        Button.primary(CustomId.of("billset", "view"), "Billing").withEmoji(Emoji.fromUnicode("💷")),
                         Button.primary(CustomId.of("payset", "view"), "Payments").withEmoji(Emoji.fromUnicode("💳")),
                         Button.primary(CustomId.of("alertset", "view"), "Alerts").withEmoji(Emoji.fromUnicode("🚨"))),
                 ActionRow.of(

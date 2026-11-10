@@ -12,6 +12,11 @@ spring:
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1
+  task:
+    scheduling:
+      # Background jobs run side by side, so a slow one (the nightly merc check) never holds up the boards.
+      pool:
+        size: 8
   flyway:
     enabled: true
     locations: classpath:db/migration

@@ -138,7 +138,7 @@ public class ControlPanelHandler implements InteractionHandler {
             case "endyes" -> {
                 if (contracts.setStatus(c.id(), List.of("ACTIVE", "PAUSED"), "ENDED")) {
                     feed.contract(c, "⏹️", "ended early by the requester", feed.hitsLanded(c));
-                    invoices.getObject().issueFinal(c);
+                    invoices.getObject().contractEnded(c);
                     changed(c.id());
                     closing(event, "⏹️ **" + c.ref() + "** has ended. No more hits will count.");
                 } else {

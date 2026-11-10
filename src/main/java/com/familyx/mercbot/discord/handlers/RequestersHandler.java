@@ -117,14 +117,14 @@ public class RequestersHandler implements InteractionHandler {
                 String now = requesters.personalDiscount(id.longArg(0)).map(p -> p.stripTrailingZeros().toPlainString())
                         .orElse("0");
                 event.replyModal(Modal.create(CustomId.of("reqs", "discsave", id.longArg(0), fresh()), "Personal discount")
-                        .addComponents(Label.of("Percent off Gold Personal requests (0 removes it)",
+                        .addComponents(Label.of("% off Gold Personal (0 removes it)",
                                 TextInput.create("pct", TextInputStyle.SHORT).setRequired(true).setMaxLength(6)
                                         .setValue(now).build()))
                         .build()).queue();
             }
             case "bl" -> event.replyModal(Modal.create(CustomId.of("reqs", "blsave", id.longArg(0),
                                     id.args().size() > 1 ? id.arg(1) : "s", fresh()), "Blacklist requester")
-                    .addComponents(Label.of("Reason (shown to them when a request is refused)",
+                    .addComponents(Label.of("Reason (shown when a request is refused)",
                             TextInput.create("reason", TextInputStyle.SHORT).setRequired(true).setMaxLength(200).build()))
                     .build()).queue();
             case "unbl" -> {
@@ -138,7 +138,7 @@ public class RequestersHandler implements InteractionHandler {
             case "fdother" -> event.replyModal(Modal.create(CustomId.of("reqs", "fdfind", fresh()), "Faction discount")
                     .addComponents(Label.of("Faction ID or name", TextInput.create("q", TextInputStyle.SHORT)
                                     .setRequired(true).setMaxLength(80).build()),
-                            Label.of("Percent off Gold My faction requests (0 removes it)",
+                            Label.of("% off Gold My faction (0 removes it)",
                                     TextInput.create("pct", TextInputStyle.SHORT).setRequired(true).setMaxLength(6).build()))
                     .build()).queue();
             default -> list(null).show(event);
@@ -155,7 +155,7 @@ public class RequestersHandler implements InteractionHandler {
                 String now = requesters.factionDiscount(faction).map(p -> p.stripTrailingZeros().toPlainString()).orElse("0");
                 event.replyModal(Modal.create(CustomId.of("reqs", "fdsave", faction, fresh()),
                                 trim("Discount · " + factionName(faction), 45))
-                        .addComponents(Label.of("Percent off Gold My faction requests (0 removes it)",
+                        .addComponents(Label.of("% off Gold My faction (0 removes it)",
                                 TextInput.create("pct", TextInputStyle.SHORT).setRequired(true).setMaxLength(6)
                                         .setValue(now).build()))
                         .build()).queue();

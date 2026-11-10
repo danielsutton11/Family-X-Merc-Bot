@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 public class PingService {
 
     private static final Logger log = LoggerFactory.getLogger(PingService.class);
-    private static final Duration WINDOW = Duration.ofMinutes(2);
     private static final long DELETE_AFTER_SECONDS = 60;
     private static final int MAX_ROWS = 10;
 
@@ -58,14 +57,16 @@ public class PingService {
     private final RoleSync roles;
     private final TierRepository tiers;
     private final BspService bsp;
+    private final com.familyx.mercbot.settings.BotSettings settings;
     private final Map<Integer, Instant> lastSent = new ConcurrentHashMap<>();
     private final Map<Integer, List<Back>> pending = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().factory());
 
     public PingService(ObjectProvider<JDA> jda, MercRepository mercs, RoleSync roles, TierRepository tiers,
-                       BspService bsp) {
+                       BspService bsp, com.familyx.mercbot.settings.BotSettings settings) {
         this.bsp = bsp;
+        this.settings = settings;
         this.jda = jda;
         this.mercs = mercs;
         this.roles = roles;
@@ -79,11 +80,12 @@ public class PingService {
         pending.computeIfAbsent(tier.id(), k -> new ArrayList<>()).addAll(back);
         Instant last = lastSent.get(tier.id());
         Instant now = Instant.now();
-        if (last == null || !last.plus(WINDOW).isAfter(now)) {
+        Duration window = Duration.ofMinutes(settings.pingGroupMinutes());
+        if (last == null || !last.plus(window).isAfter(now)) {
             scheduler.execute(() -> flush(tier.id())); // off the board thread: may wait for BSP
         } else if (pending.get(tier.id()).size() == back.size()) {
             // First item of a new group: send it when the window ends.
-            long delay = Duration.between(now, last.plus(WINDOW)).toMillis();
+            long delay = Duration.between(now, last.plus(window)).toMillis();
             scheduler.schedule(() -> flush(tier.id()), Math.max(1, delay), TimeUnit.MILLISECONDS);
         }
     }

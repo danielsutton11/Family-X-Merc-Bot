@@ -136,6 +136,28 @@ public class InvoiceRepository {
                 .params(cardId, id).update();
     }
 
+    // ---- "invoice not delivered" card in the leaders channel
+
+    public Optional<Long> undeliveredCard(long id) {
+        return jdbc.sql("SELECT undelivered_card_id FROM invoice WHERE id = ? AND undelivered_card_id IS NOT NULL")
+                .param(id).query(Long.class).optional();
+    }
+
+    public void setUndeliveredCard(long id, Long cardId, Instant deleteAt) {
+        jdbc.sql("UPDATE invoice SET undelivered_card_id = ?, undelivered_card_delete_at = ? WHERE id = ?")
+                .params(cardId, deleteAt == null ? null : java.sql.Timestamp.from(deleteAt), id).update();
+    }
+
+    public record CardDue(long invoiceId, long cardId) { }
+
+    /** Cards whose time is up: delivered on retry an hour ago, or a week old. */
+    public List<CardDue> undeliveredCardsDue() {
+        return jdbc.sql("""
+                        SELECT id, undelivered_card_id FROM invoice
+                        WHERE undelivered_card_id IS NOT NULL AND undelivered_card_delete_at <= now()""")
+                .query((rs, n) -> new CardDue(rs.getLong(1), rs.getLong(2))).list();
+    }
+
     /** Adds a payment; returns the invoice as it now stands. */
     public Invoice pay(long id, long amount, String newsId, long by) {
         jdbc.sql("""

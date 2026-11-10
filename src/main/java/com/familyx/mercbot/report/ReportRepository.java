@@ -261,7 +261,7 @@ public class ReportRepository {
                                 AND h.started >= ? AND h.started < ?) AS hits,
                                (SELECT coalesce(sum(s.amount), 0) FROM hit_share s JOIN hit h ON h.id = s.hit_id
                                 WHERE h.accepted AND s.merc_id = m.torn_id AND h.started >= ? AND h.started < ?) AS earned
-                        FROM merc m WHERE m.active ORDER BY 3 DESC, 4 DESC, m.name LIMIT ?""")
+                        FROM merc m WHERE m.status = 'ACTIVE' ORDER BY 3 DESC, 4 DESC, m.name LIMIT ?""")
                 .params(ts(from), ts(to), ts(from), ts(to), limit)
                 .query((rs, n) -> new Standing(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getLong(4)))
                 .list().stream().filter(s -> s.hits() > 0).toList();
@@ -270,7 +270,7 @@ public class ReportRepository {
     public java.util.Optional<BestHosp> bestHospital(Instant from, Instant to, int minHits) {
         return jdbc.sql("""
                         SELECT m.name, avg(h.hosp_seconds), count(*) FROM hit h JOIN merc m ON m.torn_id = h.attacker_id
-                        WHERE h.accepted AND m.active AND h.hosp_seconds IS NOT NULL AND h.started >= ? AND h.started < ?
+                        WHERE h.accepted AND m.status = 'ACTIVE' AND h.hosp_seconds IS NOT NULL AND h.started >= ? AND h.started < ?
                         GROUP BY m.torn_id, m.name HAVING count(*) >= ? ORDER BY 2 DESC LIMIT 1""")
                 .params(ts(from), ts(to), minHits)
                 .query((rs, n) -> new BestHosp(rs.getString(1), rs.getInt(2), rs.getInt(3))).optional();

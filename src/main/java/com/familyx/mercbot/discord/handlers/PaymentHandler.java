@@ -57,6 +57,25 @@ public class PaymentHandler implements InteractionHandler {
         return Access.Level.FAMILY_LEADER;
     }
 
+    /** The "invoice not delivered" card: Capacity X leaders and Merc Managers. */
+    private void undelivered(ButtonInteractionEvent event, CustomId id, long user) {
+        if (!access.isMercManager(event.getMember()) && !access.isLeaderOf(event.getMember(), settings.paymentFactionId())) {
+            event.reply("Only Capacity X leaders and Merc Managers can do this.").setEphemeral(true)
+                    .queue(h -> AutoDismiss.after(h, AutoDismiss.SHORT));
+            return;
+        }
+        long invoiceId = id.longArg(0);
+        if ("handled".equals(id.sub())) {
+            event.deferEdit().queue();
+            service.clearUndelivered(invoiceId);
+            audit.log(user, "INVOICE_UNDELIVERED_HANDLED", "invoice:" + invoiceId, null, null,
+                    "Marked an undelivered invoice as handled");
+            return;
+        }
+        event.deferEdit().queue();
+        service.resend(invoiceId, user); // edits the card when Discord answers
+    }
+
     private boolean capXLeader(IReplyCallback event) {
         if (access.isLeaderOf(event.getMember(), settings.paymentFactionId())) {
             return true;
@@ -68,10 +87,14 @@ public class PaymentHandler implements InteractionHandler {
 
     @Override
     public void button(ButtonInteractionEvent event, CustomId id) {
+        long user = event.getUser().getIdLong();
+        if ("resend".equals(id.sub()) || "handled".equals(id.sub())) {
+            undelivered(event, id, user);
+            return;
+        }
         if (!capXLeader(event)) {
             return;
         }
-        long user = event.getUser().getIdLong();
         switch (id.sub()) {
             case "confirm" -> {
                 String newsId = id.arg(0);

@@ -30,29 +30,39 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TargetWatcher {
 
     private static final Logger log = LoggerFactory.getLogger(TargetWatcher.class);
-    private static final Duration FAST = Duration.ofSeconds(10);
-    private static final Duration SLOW = Duration.ofSeconds(60);
-    private static final Duration WAR_LOCK = Duration.ofSeconds(60);
     private static final Duration SOON = Duration.ofMinutes(2);
+    /** While the key pool is busy, single players on the boards are checked no faster than this. */
+    static final Duration BUSY_FAST = Duration.ofSeconds(20);
+    private static final Duration REFRESH_AT_LEAST = Duration.ofSeconds(2);
 
     private final TargetRepository targets;
     private final TornKeyPool pool;
     private final TornLookups lookups;
     private final BoardService boards;
     private final Map<String, Instant> lastFetch = new ConcurrentHashMap<>();
+    private final com.familyx.mercbot.settings.BotSettings settings;
+    private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.keys.KeyPoolMonitor> monitor;
+    private Duration fast = Duration.ofSeconds(10);
+    private Duration slow = Duration.ofSeconds(60);
+    private Instant lastRefresh = Instant.EPOCH;
 
     private final org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.outside.OutsideService> outside;
 
     public TargetWatcher(TargetRepository targets, TornKeyPool pool, TornLookups lookups, BoardService boards,
-                         org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.outside.OutsideService> outside) {
+                         org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.outside.OutsideService> outside,
+                         com.familyx.mercbot.settings.BotSettings settings,
+                         org.springframework.beans.factory.ObjectProvider<com.familyx.mercbot.keys.KeyPoolMonitor> monitor) {
         this.outside = outside;
+        this.settings = settings;
+        this.monitor = monitor;
         this.targets = targets;
         this.pool = pool;
         this.lookups = lookups;
         this.boards = boards;
     }
 
-    @Scheduled(fixedDelay = 10_000, initialDelay = 20_000)
+    /** Looks every second for anything due; how often each target is actually read is set in Settings → Boards. */
+    @Scheduled(fixedDelay = 1_000, initialDelay = 20_000)
     public void tick() {
         try {
             run();
@@ -63,7 +73,11 @@ public class TargetWatcher {
 
     private void run() {
         Instant now = Instant.now();
-        syncRosters(now);
+        fast = Duration.ofSeconds(settings.boardFastSeconds());
+        slow = Duration.ofSeconds(settings.boardSlowSeconds());
+        BoardRules.warLock(Duration.ofSeconds(settings.warLockSeconds()));
+        boolean busy = monitor.getObject().busy();
+        int reads = syncRosters(now);
         List<BoardTarget> running = targets.running();
 
         // Group by the faction to read (one members call covers everyone in it); no faction → profile call.
@@ -77,27 +91,34 @@ public class TargetWatcher {
             }
         }
         for (Map.Entry<Long, List<BoardTarget>> e : byFaction.entrySet()) {
-            if (!due("f" + e.getKey(), e.getValue(), now)) {
+            if (!due("f" + e.getKey(), e.getValue(), now, fast)) {
                 continue;
             }
             readFaction(e.getKey(), e.getValue(), now);
+            reads++;
         }
+        Duration lonerFast = busy && fast.compareTo(BUSY_FAST) < 0 ? BUSY_FAST : fast;
         for (BoardTarget t : loners) {
-            if (!due("u" + t.tornId(), List.of(t), now)) {
+            if (!due("u" + t.tornId(), List.of(t), now, lonerFast)) {
                 continue;
             }
             readPlayer(t, now);
+            reads++;
         }
-        boards.refresh();
+        // Rows also change with time alone (coming out of hospital), so redraw at least every 2 s.
+        if (reads > 0 || !lastRefresh.plus(REFRESH_AT_LEAST).isAfter(now)) {
+            lastRefresh = now;
+            boards.refresh();
+        }
     }
 
     /** Fast when a target is on a board or about to come out of hospital; slow otherwise. */
-    private boolean due(String key, List<BoardTarget> group, Instant now) {
+    private boolean due(String key, List<BoardTarget> group, Instant now, Duration fast) {
         boolean hot = group.stream().anyMatch(t -> t.onBoard() || t.lastState() == null
                 || t.statusUntil() != null && t.statusUntil().isBefore(now.plus(SOON))
                 || t.availableAt() != null && t.availableAt().isAfter(now));
         Instant last = lastFetch.get(key);
-        if (last != null && last.plus(hot ? FAST : SLOW).isAfter(now.plusMillis(500))) {
+        if (last != null && last.plus(hot ? fast : slow).isAfter(now.plusMillis(500))) {
             return false;
         }
         lastFetch.put(key, now);
@@ -166,20 +187,22 @@ public class TargetWatcher {
         boolean justOut = "Hospital".equals(before.lastState()) && "Okay".equals(now.state());
         if (justOut && inWar) {
             Instant left = before.statusUntil() != null && before.statusUntil().isBefore(at) ? before.statusUntil() : at;
-            return left.plus(WAR_LOCK);
+            return left.plus(BoardRules.warLock());
         }
         if ("Hospital".equals(now.state()) && inWar && now.until() != null) {
-            return now.until().plus(WAR_LOCK);
+            return now.until().plus(BoardRules.warLock());
         }
         return before.availableAt() != null && before.availableAt().isAfter(at) ? before.availableAt() : null;
     }
 
     /** "All members" contracts follow the faction: joiners are added, leavers dropped. */
-    private void syncRosters(Instant now) {
+    private int syncRosters(Instant now) {
+        int reads = 0;
         for (RosterContract rc : targets.allMemberContracts()) {
-            if (!due("r" + rc.contractId(), List.of(), now)) {
+            if (!due("r" + rc.contractId(), List.of(), now, fast)) {
                 continue;
             }
+            reads++;
             JsonNode members;
             try {
                 members = pool.call(TornKeyPool.Scope.any(), "/faction/" + rc.factionId() + "/members", Map.of())
@@ -205,6 +228,7 @@ public class TargetWatcher {
                 });
             }
         }
+        return reads;
     }
 
     private static Instant epoch(JsonNode n) {

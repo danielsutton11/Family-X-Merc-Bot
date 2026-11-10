@@ -67,7 +67,7 @@ public class HardResetHandler implements InteractionHandler {
                 String phrase = money ? MONEY_PHRASE : PHRASE;
                 event.replyModal(Modal.create(CustomId.of("reset", "confirm", id.arg(0),
                                         Long.toString(System.nanoTime() % 1_000_000_000L, 36)), "Hard reset · step 2 of 2")
-                        .addComponents(Label.of("Type " + phrase + " to delete everything listed",
+                        .addComponents(Label.of("Type " + phrase + " to confirm",
                                 TextInput.create("phrase", TextInputStyle.SHORT).setRequired(true).setMaxLength(30)
                                         .setPlaceholder(phrase).build()))
                         .build()).queue();

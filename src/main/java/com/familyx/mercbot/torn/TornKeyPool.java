@@ -116,6 +116,15 @@ public class TornKeyPool {
         return (double) used / (healthy.size() * (double) perMinute);
     }
 
+    /** Calls a minute the healthy keys allow between them. */
+    public long capacityPerMinute() {
+        return keys().stream().filter(StoredKey::healthy).count() * (long) perMinute;
+    }
+
+    public int perKeyPerMinute() {
+        return perMinute;
+    }
+
     private StoredKey pick(Scope scope) throws PoolExhaustedException {
         Predicate<StoredKey> eligible = switch (scope) {
             case Scope.AnyKey a -> k -> true;

@@ -102,7 +102,16 @@ public final class BoardRules {
     }
 
     /** War lock after leaving hospital during a ranked war (scope doc 7.2). */
-    static final Duration WAR_LOCK = Duration.ofSeconds(60);
+    private static volatile Duration warLock = Duration.ofSeconds(60);
+
+    /** Settings → Boards → Ranked-war outsider window; kept here so board drawing never waits on the database. */
+    public static void warLock(Duration d) {
+        warLock = d;
+    }
+
+    public static Duration warLock() {
+        return warLock;
+    }
 
     /**
      * When the target can next be hit: out of hospital or jail (plus the war lock when their
@@ -111,7 +120,7 @@ public final class BoardRules {
     public static Instant hittableAt(BoardTarget t, Instant now) {
         if ("Hospital".equals(t.lastState()) || "Jail".equals(t.lastState())) {
             Instant out = t.statusUntil() == null ? now : t.statusUntil();
-            return "Hospital".equals(t.lastState()) && t.inRankedWar() ? out.plus(WAR_LOCK) : out;
+            return "Hospital".equals(t.lastState()) && t.inRankedWar() ? out.plus(warLock) : out;
         }
         if (t.availableAt() != null && t.availableAt().isAfter(now)) {
             return t.availableAt();

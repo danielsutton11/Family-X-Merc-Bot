@@ -58,7 +58,7 @@ public class RepSettingsHandler implements InteractionHandler {
                                 .setMaxLength(3).setValue(Integer.toString(settings.repStart())).build()),
                         pair("plus", "Paid on time / completed: points added",
                                 settings.repOnTime() + " / " + settings.repCompleted(), "e.g. 5 / 2"),
-                        Label.of("Late / part paid at due / unpaid after 7 days: taken off", TextInput.create("minus",
+                        Label.of("Taken off: late / part paid / unpaid 7 days", TextInput.create("minus",
                                 TextInputStyle.SHORT).setRequired(true).setMaxLength(14).setPlaceholder("e.g. 10 / 15 / 25")
                                 .setValue(settings.repLate() + " / " + settings.repPartial() + " / " + settings.repUnpaidWeek())
                                 .build()))
