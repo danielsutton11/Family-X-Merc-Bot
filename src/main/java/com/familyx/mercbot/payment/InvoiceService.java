@@ -71,11 +71,14 @@ public class InvoiceService {
     private final ObjectProvider<JDA> jda;
 
     private final ObjectProvider<com.familyx.mercbot.payout.PayoutService> payouts;
+    private final ObjectProvider<com.familyx.mercbot.reputation.ReputationService> reputation;
 
     public InvoiceService(InvoiceRepository invoices, ContractRepository contracts, RequestRepositories requesters,
                           MercRepository mercs, BotSettings settings, Dms dms, ResultsFeed feed,
                           ControlPanelService panels, AuditService audit, Layout layout, ObjectProvider<JDA> jda,
-                          ObjectProvider<com.familyx.mercbot.payout.PayoutService> payouts) {
+                          ObjectProvider<com.familyx.mercbot.payout.PayoutService> payouts,
+                          ObjectProvider<com.familyx.mercbot.reputation.ReputationService> reputation) {
+        this.reputation = reputation;
         this.payouts = payouts;
         this.invoices = invoices;
         this.contracts = contracts;
@@ -95,6 +98,11 @@ public class InvoiceService {
     /** The contract has finished: invoice every hit not yet invoiced. Nothing to pay → no invoice. */
     public void issueFinal(Contract c) {
         issue(c, "FINAL", null, Instant.now());
+        try {
+            reputation.getObject().completedIfDone(c.id()); // nothing left to pay: +completed (scope doc 6.5)
+        } catch (Exception e) {
+            log.warn("Reputation check for {} failed: {}", c.ref(), e.getMessage());
+        }
     }
 
     /** Interim invoices for contracts with no end, at the close of each settlement period (scope doc 4.6). */
@@ -317,6 +325,9 @@ public class InvoiceService {
                         + Money.full(inv.due()) + "** still to pay" + (inv.payeeName() == null ? "."
                         : " to " + inv.payeeName() + " [" + inv.payeeTornId() + "].")).build()));
         if ("PAID".equals(inv.status())) {
+            if (!"PAID".equals(before.status())) {
+                reputation.getObject().paid(c, inv);
+            }
             sharesNowOwed(c, inv);
             if (inv.overdueCardId() != null) {
                 deleteCard(inv.overdueCardId());
@@ -352,6 +363,7 @@ public class InvoiceService {
     public void overdue() {
         for (Invoice inv : invoices.overdueUnreminded()) {
             try {
+                reputation.getObject().overdue(inv);
                 remind(inv, true);
             } catch (Exception e) {
                 log.warn("Overdue reminder for invoice {} failed: {}", inv.id(), e.getMessage());
@@ -384,7 +396,9 @@ public class InvoiceService {
                     ActionRow.of(Button.secondary(CustomId.of("pay", "remind", inv.id()), "Remind again")
                                     .withEmoji(Emoji.fromUnicode("🔔")),
                             Button.secondary(CustomId.of("pay", "mark", inv.id()), "Mark paid…")
-                                    .withEmoji(Emoji.fromUnicode("✏️"))));
+                                    .withEmoji(Emoji.fromUnicode("✏️")),
+                            Button.secondary(CustomId.of("reqs", "open", c.requesterId()), "Open requester")
+                                    .withEmoji(Emoji.fromUnicode("👤"))));
         }
         invoices.reminded(inv.id(), card);
     }

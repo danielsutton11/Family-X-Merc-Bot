@@ -42,7 +42,8 @@ public class SettingsHandler implements InteractionHandler {
                         Button.primary(CustomId.of("factions", "view"), "Factions").withEmoji(Emoji.fromUnicode("🏰")),
                         Button.primary(CustomId.of("reqdef", "view"), "Requests").withEmoji(Emoji.fromUnicode("📝")),
                         Button.primary(CustomId.of("tiers", "view"), "Tiers").withEmoji(Emoji.fromUnicode("🏷️")),
-                        Button.secondary(CustomId.of("soon", "3", "boards"), "Boards").asDisabled()),
+                        Button.secondary(CustomId.of("soon", "3", "boards"), "Boards").asDisabled(),
+                        Button.primary(CustomId.of("repset", "view"), "Reputation").withEmoji(Emoji.fromUnicode("⭐"))),
                 ActionRow.of(
                         Button.primary(CustomId.of("claimset", "view"), "Claims").withEmoji(Emoji.fromUnicode("🔒")),
                         Button.secondary(CustomId.of("soon", "4", "billing"), "Billing").asDisabled(),

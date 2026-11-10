@@ -125,7 +125,8 @@ public class RequestService {
         }
         Requester r = repos.requester(identity.requesterTornId).orElse(null);
         if (r != null && r.blacklisted()) {
-            return new Gate.Blocked("You can't request", "Requests from your account aren't accepted.");
+            return new Gate.Blocked("You can't request", "Requests from your account aren't accepted."
+                    + (r.blacklistReason() == null ? "" : " Reason: " + r.blacklistReason()));
         }
         if (r == null || r.dmOkAt() == null || r.dmOkAt().isBefore(Instant.now().minus(DM_RECHECK))) {
             boolean ok = dms.sendNow(discordId, new EmbedBuilder().setColor(Panels.GOOD)
@@ -167,7 +168,7 @@ public class RequestService {
             d.requesterFactionName = factions.find(p.factionId()).map(FamilyFaction::name)
                     .orElseGet(() -> safeFactionName(p.factionId()));
         }
-        repos.upsertRequester(p.id(), discordId, p.name(), p.factionId());
+        repos.upsertRequester(p.id(), discordId, p.name(), p.factionId(), settings.repStart());
         identities.put(discordId, new CachedIdentity(d, Instant.now()));
         return d;
     }

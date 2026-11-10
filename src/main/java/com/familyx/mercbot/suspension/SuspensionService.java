@@ -182,7 +182,8 @@ public class SuspensionService {
         String why = reason == null || reason.isBlank() ? null : reason.strip();
         repo.suspend(mercId, until, indefinite, why, by);
         State s = repo.state(mercId).orElseThrow();
-        audit.log(by, "CLAIMS_SUSPENDED", "merc:" + mercId, null, Map.of("length", length.label),
+        audit.log(by, "CLAIMS_SUSPENDED", "merc:" + mercId, null,
+                why == null ? Map.of("length", length.label) : Map.of("length", length.label, "reason", why),
                 "Suspended claiming for **" + name(s) + "** (" + length.label.toLowerCase() + ")"
                         + (why == null ? "" : ": " + why));
         dms.send(s.discordId(), new EmbedBuilder().setColor(Panels.BAD).setAuthor("CLAIMS")

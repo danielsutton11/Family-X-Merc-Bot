@@ -51,10 +51,14 @@ public class MercService {
     private final Dms dms;
     private final AuditService audit;
 
+    private static final String BLACKLISTED = "You can't sign up as a merc. Message a Merc Manager if you think this is a mistake.";
+    private final MercStatsRepository blacklist;
+
     public MercService(MercRepository mercs, ApiKeyRepository keys, ApiKeyService keyService, KeyCipher cipher,
                        TornClient torn, TornKeyPool pool, FamilyFactionRepository factions,
                        FactionPerkService perks, RoleSync roles, TierAvailability availability, Dms dms,
-                       AuditService audit) {
+                       AuditService audit, MercStatsRepository blacklist) {
+        this.blacklist = blacklist;
         this.mercs = mercs;
         this.keys = keys;
         this.keyService = keyService;
@@ -76,6 +80,9 @@ public class MercService {
         if (!KEY_FORMAT.matcher(key).matches()) {
             return CheckResult.failed(lines, "That doesn't look like a Torn API key (16 letters and numbers).");
         }
+        if (blacklist.blacklisted(null, discordId)) {
+            return CheckResult.failed(lines, BLACKLISTED);
+        }
         String hash = KeyCipher.hash(key);
         Optional<StoredKey> existing = keys.findByHash(hash);
         if (existing.isPresent() && existing.get().ownerDiscordId() != discordId) {
@@ -91,6 +98,9 @@ public class MercService {
             return CheckResult.failed(lines, e.getMessage());
         } catch (TornApiException e) {
             return CheckResult.failed(lines, "Torn rejected the key: " + e.getMessage());
+        }
+        if (blacklist.blacklisted(owner.tornId(), discordId)) {
+            return CheckResult.failed(lines, BLACKLISTED);
         }
         Optional<FamilyFaction> faction = Optional.ofNullable(owner.factionId()).flatMap(factions::find)
                 .filter(FamilyFaction::active);
@@ -181,6 +191,11 @@ public class MercService {
 
     /** A Merc Manager removes a merc from the service (leader panel → Mercs). */
     public void remove(Merc m, long leaderDiscordId) {
+        remove(m, leaderDiscordId, false);
+    }
+
+    /** Removes a merc; blacklisted ones are told they can't sign up again. */
+    public void remove(Merc m, long leaderDiscordId, boolean blacklisted) {
         mercs.markLeft(m.tornId());
         keys.deleteByOwner(m.discordId(), Kind.MERC);
         pool.invalidate();
@@ -190,7 +205,10 @@ public class MercService {
                 "Removed **" + m.name() + "** [" + m.tornId() + "] from the merc service");
         dms.send(m.discordId(), new EmbedBuilder().setColor(Panels.WARN).setAuthor("FAMILY X MERCS")
                 .setTitle("🚪  You've been removed from the merc service")
-                .setDescription("A Merc Manager removed you, so your merc roles and stored key are gone. If you think "
+                .setDescription(blacklisted
+                        ? "A Merc Manager removed you, so your merc roles and stored key are gone, and you can't sign up "
+                        + "again. If you think this was a mistake, ask a Merc Manager."
+                        : "A Merc Manager removed you, so your merc roles and stored key are gone. If you think "
                         + "this was a mistake, ask a Merc Manager. You can join again from the merc sign-up channel.")
                 .build());
     }

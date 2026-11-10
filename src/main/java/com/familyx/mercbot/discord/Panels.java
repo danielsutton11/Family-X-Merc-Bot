@@ -210,7 +210,7 @@ public class Panels {
                                 .withEmoji(Emoji.fromUnicode("💰")),
                         Button.secondary(CustomId.of("mercs", "view"), "Mercs")
                                 .withEmoji(Emoji.fromUnicode("🗡️")),
-                        Button.secondary(CustomId.of("soon", "5", "requesters"), "Requesters")
+                        Button.secondary(CustomId.of("reqs", "view"), "Requesters")
                                 .withEmoji(Emoji.fromUnicode("🧾"))),
                 ActionRow.of(
                         Button.secondary(CustomId.of("tiers", "view"), "Tiers & pricing")

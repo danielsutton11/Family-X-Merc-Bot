@@ -412,4 +412,16 @@ class UnitTests {
         assertEquals("11th", Messaging.ordinal(11));
         assertEquals("23rd", Messaging.ordinal(23));
     }
+
+    @Test
+    void leaderScoreChangesAndDiscountsParse() {
+        var h = com.familyx.mercbot.discord.handlers.RequestersHandler.class;
+        assertEquals(Integer.valueOf(10), com.familyx.mercbot.discord.handlers.RequestersHandler.parseChange("+10"));
+        assertEquals(Integer.valueOf(-20), com.familyx.mercbot.discord.handlers.RequestersHandler.parseChange("−20"));
+        assertNull(com.familyx.mercbot.discord.handlers.RequestersHandler.parseChange("ten"));
+        assertEquals(new java.math.BigDecimal("12.50"), com.familyx.mercbot.discord.handlers.RequestersHandler.parsePct("12.5%"));
+        assertNull(com.familyx.mercbot.discord.handlers.RequestersHandler.parsePct("150"));
+        assertNull(com.familyx.mercbot.discord.handlers.RequestersHandler.parsePct("-1"));
+        assertEquals("RequestersHandler", h.getSimpleName());
+    }
 }

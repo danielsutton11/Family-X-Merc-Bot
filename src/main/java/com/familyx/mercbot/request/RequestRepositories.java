@@ -40,12 +40,12 @@ public class RequestRepositories {
     }
 
     /** Records (or refreshes) a requester's Torn identity. New requesters start at a score of 50. */
-    public void upsertRequester(long tornId, long discordId, String name, Long factionId) {
+    public void upsertRequester(long tornId, long discordId, String name, Long factionId, int startingScore) {
         jdbc.sql("""
-                        INSERT INTO requester (torn_id, discord_id, name, faction_id) VALUES (?, ?, ?, ?)
+                        INSERT INTO requester (torn_id, discord_id, name, faction_id, score) VALUES (?, ?, ?, ?, ?)
                         ON CONFLICT (torn_id) DO UPDATE
                         SET discord_id = EXCLUDED.discord_id, name = EXCLUDED.name, faction_id = EXCLUDED.faction_id""")
-                .params(tornId, discordId, name, factionId).update();
+                .params(tornId, discordId, name, factionId, startingScore).update();
     }
 
     public void markDmOk(long tornId) {

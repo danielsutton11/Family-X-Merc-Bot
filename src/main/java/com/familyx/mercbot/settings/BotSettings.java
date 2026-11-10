@@ -216,6 +216,40 @@ public class BotSettings {
         return repo.get(ALERT_AVAIL_HOURS, Integer.class).orElse(6);
     }
 
+    // ---- reputation (scope doc 6.5; Settings → Reputation)
+
+    public static final String REP_START = "reputation.start";
+    public static final String REP_ON_TIME = "reputation.paidOnTime";
+    public static final String REP_COMPLETED = "reputation.completed";
+    public static final String REP_LATE = "reputation.late";
+    public static final String REP_PARTIAL = "reputation.partialAtDue";
+    public static final String REP_UNPAID_WEEK = "reputation.unpaidWeek";
+
+    public int repStart() {
+        return repo.get(REP_START, Integer.class).orElse(50);
+    }
+
+    public int repOnTime() {
+        return repo.get(REP_ON_TIME, Integer.class).orElse(5);
+    }
+
+    public int repCompleted() {
+        return repo.get(REP_COMPLETED, Integer.class).orElse(2);
+    }
+
+    /** Positive number; taken off. */
+    public int repLate() {
+        return repo.get(REP_LATE, Integer.class).orElse(10);
+    }
+
+    public int repPartial() {
+        return repo.get(REP_PARTIAL, Integer.class).orElse(15);
+    }
+
+    public int repUnpaidWeek() {
+        return repo.get(REP_UNPAID_WEEK, Integer.class).orElse(25);
+    }
+
     public void set(String key, Object value, long changedBy) {
         repo.put(key, value, changedBy);
     }
