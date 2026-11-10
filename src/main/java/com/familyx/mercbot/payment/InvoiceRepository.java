@@ -94,6 +94,36 @@ public class InvoiceRepository {
                 .param(limit).query(this::map).list();
     }
 
+    /** Leader panel → Invoices & payouts lists (phase 4c). */
+    public enum LeaderList {
+        OPEN("Open invoices", "status IN ('OPEN', 'PARTIAL') ORDER BY due_at"),
+        OVERDUE("Overdue", "status IN ('OPEN', 'PARTIAL') AND due_at < now() ORDER BY due_at"),
+        PAID("Paid (30 days)", "status = 'PAID' AND paid_at > now() - interval '30 days' ORDER BY paid_at DESC"),
+        ALL("All", "TRUE ORDER BY created_at DESC");
+
+        public final String label;
+        final String where;
+
+        LeaderList(String label, String where) {
+            this.label = label;
+            this.where = where;
+        }
+    }
+
+    public List<Invoice> forLeaders(LeaderList list, int limit) {
+        return jdbc.sql("SELECT * FROM invoice WHERE " + list.where + " LIMIT ?").param(limit).query(this::map).list();
+    }
+
+    /** What requesters still owe on open and part-paid invoices, and how many there are. */
+    public record Unpaid(long due, int count) { }
+
+    public Unpaid unpaid() {
+        return jdbc.sql("""
+                        SELECT coalesce(sum(total - amount_paid), 0), count(*) FROM invoice
+                        WHERE status IN ('OPEN', 'PARTIAL')""")
+                .query((rs, n) -> new Unpaid(rs.getLong(1), rs.getInt(2))).single();
+    }
+
     public List<Invoice> overdueUnreminded() {
         return jdbc.sql("""
                         SELECT * FROM invoice WHERE status IN ('OPEN', 'PARTIAL') AND due_at < now()
@@ -124,7 +154,7 @@ public class InvoiceRepository {
     public java.util.Map<Long, Long> sharesOwed(long invoiceId) {
         java.util.Map<Long, Long> out = new java.util.HashMap<>();
         jdbc.sql("""
-                        UPDATE hit_share s SET state = 'OWED', updated_at = now()
+                        UPDATE hit_share s SET state = 'OWED', owed_at = now(), updated_at = now()
                         FROM hit h WHERE h.id = s.hit_id AND h.invoice_id = ? AND s.state = 'PENDING'
                         RETURNING s.merc_id, s.amount""")
                 .param(invoiceId)

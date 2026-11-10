@@ -7,6 +7,7 @@ import com.familyx.mercbot.discord.CustomId;
 import com.familyx.mercbot.discord.Money;
 import com.familyx.mercbot.keys.KeyCipher;
 import com.familyx.mercbot.merc.Eligibility;
+import com.familyx.mercbot.payout.Periods;
 import com.familyx.mercbot.request.Choices;
 import com.familyx.mercbot.request.Pricing;
 import com.familyx.mercbot.request.Rules;
@@ -349,5 +350,33 @@ class UnitTests {
         assertEquals(131_280_000L, p.amount());
         assertEquals(131_281_000L, p.after());
         assertEquals(true, com.familyx.mercbot.payment.NewsReconciler.parse("Hoezey deposited $5,000").isEmpty());
+    }
+
+    @Test
+    void weeklyPeriodEndsOnMondayAndIsLabelled() {
+        Instant tue = Instant.parse("2026-11-10T10:00:00Z");
+        Periods.Period p = Periods.lastClosed("WEEKLY", tue).orElseThrow();
+        assertEquals(Instant.parse("2026-11-02T00:00:00Z"), p.start());
+        assertEquals(Instant.parse("2026-11-09T00:00:00Z"), p.end());
+        assertEquals("week 2–8 Nov", Periods.label(p.start(), p.end()));
+        assertEquals(Instant.parse("2026-11-16T00:00:00Z"), Periods.nextClose("WEEKLY", tue));
+        assertEquals("week 26 Oct–1 Nov", Periods.label(Instant.parse("2026-10-26T00:00:00Z"),
+                Instant.parse("2026-11-02T00:00:00Z")));
+    }
+
+    @Test
+    void monthlyPeriodAndPerContractHaveNoWeeklyClose() {
+        Periods.Period p = Periods.lastClosed("MONTHLY", Instant.parse("2026-11-01T00:30:00Z")).orElseThrow();
+        assertEquals(Instant.parse("2026-10-01T00:00:00Z"), p.start());
+        assertEquals("October 2026", Periods.label(p.start(), p.end()));
+        assertEquals(Optional.empty(), Periods.lastClosed("PER_CONTRACT", Instant.now()));
+        assertNull(Periods.nextClose("PER_CONTRACT", Instant.now()));
+    }
+
+    @Test
+    void payoutStringMatchesPaymentScriptFormat() {
+        assertEquals("[[2104455,5742000],[2650012,3316500]]",
+                Periods.payoutString(List.of(new long[] {2104455, 5742000}, new long[] {2650012, 3316500})));
+        assertEquals("[]", Periods.payoutString(List.of()));
     }
 }

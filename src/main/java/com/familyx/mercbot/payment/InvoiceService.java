@@ -70,9 +70,13 @@ public class InvoiceService {
     private final Layout layout;
     private final ObjectProvider<JDA> jda;
 
+    private final ObjectProvider<com.familyx.mercbot.payout.PayoutService> payouts;
+
     public InvoiceService(InvoiceRepository invoices, ContractRepository contracts, RequestRepositories requesters,
                           MercRepository mercs, BotSettings settings, Dms dms, ResultsFeed feed,
-                          ControlPanelService panels, AuditService audit, Layout layout, ObjectProvider<JDA> jda) {
+                          ControlPanelService panels, AuditService audit, Layout layout, ObjectProvider<JDA> jda,
+                          ObjectProvider<com.familyx.mercbot.payout.PayoutService> payouts) {
+        this.payouts = payouts;
         this.invoices = invoices;
         this.contracts = contracts;
         this.requesters = requesters;
@@ -333,6 +337,11 @@ public class InvoiceService {
                                     + " move from Pending to **Owed** until your faction credits them.")
                             .build());
                 }));
+        try {
+            payouts.getObject().sharesOwed(); // settles per contract, and updates the payouts embeds
+        } catch (Exception e) {
+            log.warn("Couldn't update payouts after {} was paid: {}", c.ref(), e.getMessage());
+        }
     }
 
     // ------------------------------------------------------------------ overdue

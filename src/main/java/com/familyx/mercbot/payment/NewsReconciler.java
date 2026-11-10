@@ -37,7 +37,11 @@ public class NewsReconciler {
     private final BotSettings settings;
     private Instant lastWarned;
 
-    public NewsReconciler(TornKeyPool pool, InvoiceRepository invoices, InvoiceService service, BotSettings settings) {
+    private final com.familyx.mercbot.payout.PayoutService payouts;
+
+    public NewsReconciler(TornKeyPool pool, InvoiceRepository invoices, InvoiceService service, BotSettings settings,
+                          com.familyx.mercbot.payout.PayoutService payouts) {
+        this.payouts = payouts;
         this.pool = pool;
         this.invoices = invoices;
         this.service = service;
@@ -77,6 +81,33 @@ public class NewsReconciler {
                 } catch (Exception e) {
                     log.warn("Couldn't match deposit {}: {}", id, e.getMessage());
                 }
+            }
+        }
+        creditPayouts(faction, news);
+    }
+
+    /**
+     * Phase 4c: credits to mercs from an open payout string show in the same news as
+     * "X increased &lt;merc&gt;'s money balance by $N". Capacity X's news is already read above;
+     * other factions' news is only read while they have a payout string open.
+     */
+    private void creditPayouts(long poolFaction, JsonNode poolNews) {
+        try {
+            payouts.creditFromNews(poolFaction, poolNews);
+        } catch (Exception e) {
+            log.warn("Couldn't match credits for {}: {}", poolFaction, e.getMessage());
+        }
+        for (var p : payouts.openPayouts()) {
+            if (p.factionId() == poolFaction) {
+                continue;
+            }
+            try {
+                JsonNode news = pool.call(Scope.faction(p.factionId()), "/faction/news",
+                        Map.of("cat", "depositFunds", "striptags", "false", "limit", "100", "sort", "DESC"));
+                payouts.creditFromNews(p.factionId(), news);
+            } catch (Exception e) {
+                log.warn("Couldn't read faction news for {} to match payout credits (needs a leader key with "
+                        + "faction API access): {}", p.factionId(), e.getMessage());
             }
         }
     }

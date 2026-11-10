@@ -61,9 +61,11 @@ public class Panels {
     private final FamilyFactionRepository factions;
     private final ApiKeyRepository keys;
     private final BotSettings settings;
+    private final com.familyx.mercbot.payout.PayoutEmbeds payoutEmbeds;
 
     public Panels(TierRepository tiers, FamilyFactionRepository factions, ApiKeyRepository keys,
-                  BotSettings settings) {
+                  BotSettings settings, com.familyx.mercbot.payout.PayoutEmbeds payoutEmbeds) {
+        this.payoutEmbeds = payoutEmbeds;
         this.tiers = tiers;
         this.factions = factions;
         this.keys = keys;
@@ -204,7 +206,7 @@ public class Panels {
                 ActionRow.of(
                         Button.secondary(CustomId.of("lcon", "view"), "Contracts")
                                 .withEmoji(Emoji.fromUnicode("📋")),
-                        Button.secondary(CustomId.of("soon", "4", "invoices-payouts"), "Invoices & payouts")
+                        Button.secondary(CustomId.of("inv", "view"), "Invoices & payouts")
                                 .withEmoji(Emoji.fromUnicode("💰")),
                         Button.secondary(CustomId.of("mercs", "view"), "Mercs")
                                 .withEmoji(Emoji.fromUnicode("🗡️")),
@@ -224,12 +226,8 @@ public class Panels {
     // ------------------------------------------------------------------ #merc-payouts
 
     public Panel payouts(FamilyFaction faction) {
-        EmbedBuilder eb = new EmbedBuilder()
-                .setColor(BRAND)
-                .setAuthor(faction.name().toUpperCase() + " PAYOUTS")
-                .setTitle("💰  Nothing owed yet")
-                .setDescription("Merc shares and settlements for " + faction.name() + " appear here.");
-        return new Panel(eb.build(), List.of());
+        var look = payoutEmbeds.embed(faction);
+        return new Panel(look.embed(), look.rows());
     }
 
     // ------------------------------------------------------------------ helpers
